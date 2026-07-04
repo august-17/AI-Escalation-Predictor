@@ -33,3 +33,39 @@ class Renderer:
             (0, 255, 0),
             2,
         )
+
+
+    @staticmethod
+    def draw_detections(frame, detections: list[dict]) -> None:
+        """
+        Draw person detections on the frame.
+
+        Args:
+            frame: Video frame.
+            detections: List of person detections.
+        """
+
+        for detection in detections:
+
+            x1, y1, x2, y2 = detection["bbox"]
+            confidence = detection["confidence"]
+
+            cv2.rectangle(
+                frame,
+                (x1, y1),
+                (x2, y2),
+                (0, 255, 0),
+                2,
+            )
+
+            label = f"Person {confidence:.2f}"
+
+            cv2.putText(
+                frame,
+                label,
+                (x1, max(y1 - 10, 20)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (0, 255, 0),
+                2,
+            )

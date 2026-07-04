@@ -11,6 +11,7 @@ import cv2
 from camera.camera import Camera
 from camera.fps import FPSCounter
 from graphics.renderer import Renderer
+from detection.person_detector import PersonDetector
 
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ class Application:
         """
         self.camera = Camera()
         self.fps_counter = FPSCounter()
+        self.detector = PersonDetector()
 
     def run(self) -> None:
         """
@@ -52,6 +54,10 @@ class Application:
                 if not success:
                     logger.error("Unable to read frame.")
                     break
+
+                detections = self.detector.detect(frame)
+
+                Renderer.draw_detections(frame, detections)
 
                 self.fps_counter.update()
 
