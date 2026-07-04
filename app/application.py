@@ -38,6 +38,9 @@ class Application:
         if not self.camera.open():
             logger.error("Failed to initialize camera.")
             return
+        
+        width, height = self.camera.get_resolution()
+        logger.info("Camera resolution: %d x %d", width, height)
 
         logger.info("Press 'Q' to quit.")
 

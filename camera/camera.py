@@ -48,6 +48,9 @@ class Camera:
         """
         self.capture = cv2.VideoCapture(self.camera_index)
 
+        self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
         if self.capture is None or not self.capture.isOpened():
             logger.error("Unable to open camera %s.", self.camera_index)
             return False
