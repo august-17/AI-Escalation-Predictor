@@ -11,7 +11,6 @@ from typing import Optional
 
 import cv2
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -49,7 +48,7 @@ class Camera:
         """
         self.capture = cv2.VideoCapture(self.camera_index)
 
-        if not self.capture.isOpened():
+        if self.capture is None or not self.capture.isOpened():
             logger.error("Unable to open camera %s.", self.camera_index)
             return False
 
@@ -80,8 +79,10 @@ class Camera:
 
     def get_resolution(self) -> tuple[int, int]:
         """
+        Return the current camera resolution.
+
         Returns:
-            (width, height)
+            A tuple containing (width, height).
         """
         if self.capture is None:
             return 0, 0

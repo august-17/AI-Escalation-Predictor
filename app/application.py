@@ -9,6 +9,8 @@ import logging
 import cv2
 
 from camera.camera import Camera
+from camera.fps import FPSCounter
+from graphics.renderer import Renderer
 
 
 logger = logging.getLogger(__name__)
@@ -24,6 +26,7 @@ class Application:
         Initialize the application.
         """
         self.camera = Camera()
+        self.fps_counter = FPSCounter()
 
     def run(self) -> None:
         """
@@ -39,7 +42,6 @@ class Application:
         logger.info("Press 'Q' to quit.")
 
         try:
-
             while True:
 
                 success, frame = self.camera.read()
@@ -48,11 +50,17 @@ class Application:
                     logger.error("Unable to read frame.")
                     break
 
+                self.fps_counter.update()
+
+                fps = self.fps_counter.get_fps()
+                
+                Renderer.draw_fps(frame, fps)
+
                 cv2.imshow("AI Escalation Predictor", frame)
 
-                key = cv2.waitKey(1)
+                key = cv2.waitKey(1) & 0xFF
 
-                if key == ord("q") or key == ord("Q"):
+                if key in (ord("q"), ord("Q")):
                     logger.info("Exit requested by user.")
                     break
 
@@ -63,7 +71,6 @@ class Application:
             logger.exception("An unexpected error occurred.")
 
         finally:
-
             self.camera.release()
             cv2.destroyAllWindows()
             logger.info("Application closed.")

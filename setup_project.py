@@ -13,8 +13,9 @@ directories = [
     "tracking",
     "analysis",
     "alerts",
-    "gui",
+    "interface",
     "camera",
+    "graphics",
     "assets/icons",
     "assets/sounds",
     "data/videos",
@@ -25,24 +26,6 @@ directories = [
 ]
 
 files = {
-    "main.py": '''def main():
-    print("AI Escalation Predictor Started")
-
-
-if __name__ == "__main__":
-    main()
-''',
-
-    "README.md": '''# AI Escalation Predictor
-
-A real-time AI-powered behavioral risk assessment system that estimates
-the likelihood of physical conflict using computer vision and human pose analysis.
-
-> 🚧 Project under active development.
-''',
-
-    "requirements.txt": "",
-
     ".gitignore": '''# Virtual Environment
 venv/
 
@@ -83,8 +66,10 @@ package_dirs = [
     "tracking",
     "analysis",
     "alerts",
-    "gui",
-    "utils",
+    "interface",
+    "camera",
+    "app",
+    "graphics",
     "tests"
 ]
 

@@ -15,7 +15,8 @@ logging.basicConfig(
 
 
 def main() -> None:
-    """Start the application."""
+    """Application entry point."""
+    
     app = Application()
     app.run()
 
