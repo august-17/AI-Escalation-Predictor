@@ -7,13 +7,14 @@ from pathlib import Path
 PROJECT_NAME = "AI-Escalation-Predictor"
 
 directories = [
+    "app",
     "config",
     "detection",
     "tracking",
     "analysis",
     "alerts",
     "gui",
-    "utils",
+    "camera",
     "assets/icons",
     "assets/sounds",
     "data/videos",
@@ -24,7 +25,7 @@ directories = [
 ]
 
 files = {
-    "app.py": '''def main():
+    "main.py": '''def main():
     print("AI Escalation Predictor Started")
 
 
