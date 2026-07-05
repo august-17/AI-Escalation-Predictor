@@ -57,7 +57,10 @@ class Application:
 
                 tracked_people = self.tracker.track(frame)
 
-                logger.info("Tracked people: %d", len(tracked_people))
+                Renderer.draw_tracked_people(
+                    frame,
+                    tracked_people,
+                )
 
                 self.fps_counter.update()
 
