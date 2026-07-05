@@ -8,18 +8,15 @@ from __future__ import annotations
 
 import cv2
 
-import mediapipe as mp
-
 from models.tracked_person import TrackedPerson
 from models.person_detection import PersonDetection
+from models.pose_result import PoseResult
+from pose.pose_connections import POSE_CONNECTIONS
 
 class Renderer:
     """
     Responsible for drawing overlays on video frames.
     """
-
-    _mp_drawing = mp.solutions.drawing_utils
-    _mp_pose = mp.solutions.pose
 
     @staticmethod
     def draw_fps(frame: cv2.typing.MatLike, fps: float) -> None:
@@ -81,10 +78,7 @@ class Renderer:
 
 
     @staticmethod
-    def draw_tracked_people(
-        frame: cv2.typing.MatLike,
-        tracked_people: list[TrackedPerson],
-    ) -> None:
+    def draw_tracked_people(frame: cv2.typing.MatLike, tracked_people: list[TrackedPerson]) -> None:
         """
         Draw tracked people with their tracking IDs.
 
@@ -107,6 +101,8 @@ class Renderer:
                 2,
             )
 
+            Renderer.draw_pose(frame, person.pose)
+
             label = (
                 f"ID: {person.track_id} | "
                 f"Person {person.confidence:.2f}"
@@ -124,22 +120,23 @@ class Renderer:
 
 
     @staticmethod
-    def draw_pose(
-        frame: cv2.typing.MatLike,
-        person: TrackedPerson,
-    ) -> None:
+    def draw_pose(frame: cv2.typing.MatLike, pose: PoseResult | None) -> None:
         """
-        Draw MediaPipe pose landmarks for a tracked person.
+        Draw pose landmarks.
         """
 
-        if person.pose is None:
+        if pose is None:
             return
 
-        if person.pose.pose_landmarks is None:
-            return
+        for landmark in pose.landmarks:
 
-        Renderer._mp_drawing.draw_landmarks(
-            frame,
-            person.pose.pose_landmarks,
-            Renderer._mp_pose.POSE_CONNECTIONS,
-        )
+            if landmark.visibility < 0.5:
+                continue
+
+            cv2.circle(
+                frame,
+                (landmark.x, landmark.y),
+                4,
+                (0, 255, 255),
+                -1,
+            )
