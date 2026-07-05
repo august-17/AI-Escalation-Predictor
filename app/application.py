@@ -12,6 +12,7 @@ from camera.camera import Camera
 from camera.fps import FPSCounter
 from graphics.renderer import Renderer
 from tracking.person_tracker import PersonTracker
+from pose.landmark_converter import LandmarkConverter
 from pose.pose_estimator import PoseEstimator
 from config.settings import (
     POSE_INTERVAL_SINGLE_PERSON,
@@ -146,17 +147,23 @@ class Application:
 
                     if run_pose:
 
-                        pose_results = self.pose_estimator.estimate(
-                            person_roi
+                        mp_pose_result = self.pose_estimator.estimate(person_roi)
+
+                        x1, y1, x2, y2 = person.bbox
+
+                        pose_result = LandmarkConverter.convert(
+                            mp_pose_result,
+                            roi_x=x1,
+                            roi_y=y1,
+                            roi_width=x2 - x1,
+                            roi_height=y2 - y1,
                         )
 
-                        self.pose_cache[person.track_id] = pose_results
+                        self.pose_cache[person.track_id] = pose_result
 
                     else:
 
-                        pose_results = self.pose_cache.get(
-                            person.track_id
-                        )
+                        pose_results = self.pose_cache.get(person.track_id)
 
                     person.pose = pose_results
 
