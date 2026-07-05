@@ -13,6 +13,7 @@ from camera.fps import FPSCounter
 from graphics.renderer import Renderer
 from tracking.person_tracker import PersonTracker
 from pose.landmark_converter import LandmarkConverter
+from models.pose_result import PoseResult
 from pose.pose_estimator import PoseEstimator
 from config.settings import (
     POSE_INTERVAL_SINGLE_PERSON,
@@ -41,7 +42,7 @@ class Application:
         self.pose_estimator = PoseEstimator()
 
         self.frame_count: int = 0
-        self.pose_cache: dict[int, object] = {}
+        self.pose_cache: dict[int, PoseResult] = {}
     
 
     def _should_run_pose(self, people_count: int) -> bool:
@@ -178,10 +179,11 @@ class Application:
                     if track_id in active_ids
                 }
 
-                Renderer.draw_tracked_people(
-                    frame,
-                    tracked_people,
-                )
+                Renderer.draw_tracked_people(frame, tracked_people)
+
+                for person in tracked_people:
+
+                    Renderer.draw_pose(frame, person.pose)
 
                 self.fps_counter.update()
 
