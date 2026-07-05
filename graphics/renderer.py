@@ -47,8 +47,8 @@ class Renderer:
 
         for detection in detections:
 
-            x1, y1, x2, y2 = detection["bbox"]
-            confidence = detection["confidence"]
+            x1, y1, x2, y2 = detection.bbox
+            confidence = detection.confidence
 
             cv2.rectangle(
                 frame,

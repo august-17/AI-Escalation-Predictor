@@ -10,6 +10,8 @@ import logging
 
 from ultralytics import YOLO
 
+from models.person_detection import PersonDetection
+
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +48,7 @@ class PersonDetector:
             List of detected people.
         """
 
-        detections = []
+        detections: list[PersonDetection] = []
 
         results = self.model(frame, verbose=False)
 
@@ -64,10 +66,10 @@ class PersonDetector:
                 confidence = float(box.conf[0])
 
                 detections.append(
-                    {
-                        "bbox": (x1, y1, x2, y2),
-                        "confidence": confidence,
-                    }
+                    PersonDetection(
+                        bbox=(x1, y1, x2, y2),
+                        confidence=confidence,
+                    )
                 )
 
         return detections
