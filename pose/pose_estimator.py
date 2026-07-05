@@ -1,15 +1,14 @@
 """
 pose_estimator.py
 
-Provides a MediaPipe-based human pose estimator.
+Provides a YOLO Pose based pose estimator.
 """
 
 from __future__ import annotations
 
 import logging
 
-import cv2
-import mediapipe as mp
+from ultralytics import YOLO
 
 
 logger = logging.getLogger(__name__)
@@ -17,48 +16,32 @@ logger = logging.getLogger(__name__)
 
 class PoseEstimator:
     """
-    Estimates human body landmarks using MediaPipe Pose.
+    Estimates human body keypoints using YOLO Pose.
     """
 
-    def __init__(
-        self,
-        min_detection_confidence: float = 0.5,
-        min_tracking_confidence: float = 0.5,
-    ) -> None:
+    def __init__(self, model_name: str = "yolov8n-pose.pt") -> None:
         """
         Initialize the pose estimator.
 
         Args:
-            min_detection_confidence:
-                Minimum confidence required for pose detection.
-
-            min_tracking_confidence:
-                Minimum confidence required for landmark tracking.
+            model_name: YOLO pose model filename.
         """
 
-        self._mp_pose = mp.solutions.pose
+        logger.info("Loading pose model: %s", model_name)
 
-        self.pose = self._mp_pose.Pose(
-            static_image_mode=False,
-            model_complexity=1,
-            smooth_landmarks=True,
-            min_detection_confidence=min_detection_confidence,
-            min_tracking_confidence=min_tracking_confidence,
-        )
+        self.model = YOLO(model_name)
 
-        logger.info("MediaPipe Pose initialized successfully.")
+        logger.info("Pose model loaded successfully.")
 
     def estimate(self, frame):
         """
-        Estimate pose landmarks for a frame.
+        Estimate poses in a frame.
 
         Args:
             frame: OpenCV frame.
 
         Returns:
-            MediaPipe pose results.
+            YOLO pose results.
         """
 
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        return self.pose.process(rgb_frame)
+        return self.model(frame, verbose=False)

@@ -12,7 +12,6 @@ from camera.camera import Camera
 from camera.fps import FPSCounter
 from graphics.renderer import Renderer
 from tracking.person_tracker import PersonTracker
-from pose.pose_estimator import PoseEstimator
 
 
 logger = logging.getLogger(__name__)
@@ -30,7 +29,6 @@ class Application:
         self.camera = Camera()
         self.fps_counter = FPSCounter()
         self.tracker = PersonTracker()
-        self.pose_estimator = PoseEstimator()
 
     def run(self) -> None:
         """
@@ -58,11 +56,6 @@ class Application:
                     break
 
                 tracked_people = self.tracker.track(frame)
-
-                pose_results = self.pose_estimator.estimate(frame)
-
-                if pose_results.pose_landmarks:
-                    logger.info("Pose detected")
 
                 Renderer.draw_tracked_people(
                     frame,
