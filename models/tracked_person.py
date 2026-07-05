@@ -6,7 +6,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from models.pose_result import PoseResult
 from models.types import BoundingBox
+
 
 
 @dataclass(slots=True)
@@ -18,3 +20,4 @@ class TrackedPerson:
     track_id: int
     bbox: BoundingBox
     confidence: float
+    pose: PoseResult | None = None

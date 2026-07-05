@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import cv2
 
+import mediapipe as mp
+
 from models.tracked_person import TrackedPerson
 from models.person_detection import PersonDetection
 
@@ -15,6 +17,9 @@ class Renderer:
     """
     Responsible for drawing overlays on video frames.
     """
+
+    _mp_drawing = mp.solutions.drawing_utils
+    _mp_pose = mp.solutions.pose
 
     @staticmethod
     def draw_fps(frame: cv2.typing.MatLike, fps: float) -> None:
@@ -116,3 +121,25 @@ class Renderer:
                 (0, 255, 0),
                 2,
             )
+
+
+    @staticmethod
+    def draw_pose(
+        frame: cv2.typing.MatLike,
+        person: TrackedPerson,
+    ) -> None:
+        """
+        Draw MediaPipe pose landmarks for a tracked person.
+        """
+
+        if person.pose is None:
+            return
+
+        if person.pose.pose_landmarks is None:
+            return
+
+        Renderer._mp_drawing.draw_landmarks(
+            frame,
+            person.pose.pose_landmarks,
+            Renderer._mp_pose.POSE_CONNECTIONS,
+        )

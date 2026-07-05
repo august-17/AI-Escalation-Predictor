@@ -158,6 +158,8 @@ class Application:
                             person.track_id
                         )
 
+                    person.pose = pose_results
+
                 active_ids = {
                     person.track_id
                     for person in tracked_people
