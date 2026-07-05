@@ -17,9 +17,9 @@ class FPSCounter:
     def __init__(self) -> None:
         """Initialize the FPS counter."""
 
-        self._previous_time = time.perf_counter()
-        self._frame_count = 0
-        self._fps = 0.0
+        self._frame_count: int = 0
+        self._fps: float = 0.0
+        self._previous_time: float = time.perf_counter()
 
     def update(self) -> None:
         """

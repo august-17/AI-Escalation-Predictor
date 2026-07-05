@@ -11,6 +11,12 @@ from typing import Optional
 
 import cv2
 
+from config.settings import (
+    CAMERA_INDEX,
+    CAMERA_WIDTH,
+    CAMERA_HEIGHT,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,7 +35,7 @@ class Camera:
         - Perform AI inference
     """
 
-    def __init__(self, camera_index: int = 0) -> None:
+    def __init__(self, camera_index: int = CAMERA_INDEX) -> None:
         """
         Initialize a Camera object.
 
@@ -48,8 +54,8 @@ class Camera:
         """
         self.capture = cv2.VideoCapture(self.camera_index)
 
-        self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
+        self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
 
         if self.capture is None or not self.capture.isOpened():
             logger.error("Unable to open camera %s.", self.camera_index)

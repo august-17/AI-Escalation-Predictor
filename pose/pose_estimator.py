@@ -38,7 +38,7 @@ class PoseEstimator:
 
         logger.info("MediaPipe Pose initialized successfully.")
 
-    def estimate(self, person_roi):
+    def estimate(self, person_roi: cv2.typing.MatLike):
         """
         Estimate pose landmarks for a cropped person image.
 
@@ -46,7 +46,8 @@ class PoseEstimator:
             person_roi: Cropped image containing a single person.
 
         Returns:
-            MediaPipe pose results.
+            MediaPipe pose estimation results,
+            or None if the ROI is empty.
         """
 
         if person_roi.size == 0:

@@ -3,17 +3,21 @@ Application-wide configuration settings.
 """
 
 # Camera
-CAMERA_INDEX = 0
+CAMERA_INDEX: int = 0
+CAMERA_WIDTH: int = 1280
+CAMERA_HEIGHT: int = 720
 
-# Pose estimation
+# Object detection
+PERSON_CLASS_ID: int = 0
 
 # Pose estimation intervals
-
-POSE_INTERVAL_SINGLE_PERSON = 2
-POSE_INTERVAL_FEW_PEOPLE = 3
-POSE_INTERVAL_MANY_PEOPLE = 4
+POSE_INTERVAL_SINGLE_PERSON: int = 2
+POSE_INTERVAL_FEW_PEOPLE: int = 3
+POSE_INTERVAL_MANY_PEOPLE: int = 4
 
 # Minimum size required before running pose estimation
+MIN_PERSON_WIDTH: int = 120
+MIN_PERSON_HEIGHT: int = 200
 
-MIN_PERSON_WIDTH = 120
-MIN_PERSON_HEIGHT = 200
+# Tracking
+TRACK_PERSIST: bool = True

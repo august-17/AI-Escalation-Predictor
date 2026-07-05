@@ -6,13 +6,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from models.types import BoundingBox
+
 
 @dataclass(slots=True)
 class TrackedPerson:
     """
-    Represents a tracked person.
+    Represents a person currently being tracked across video frames.
     """
 
     track_id: int
-    bbox: tuple[int, int, int, int]
+    bbox: BoundingBox
     confidence: float

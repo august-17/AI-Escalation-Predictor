@@ -8,9 +8,16 @@ from __future__ import annotations
 
 import logging
 
+import cv2
+
 from ultralytics import YOLO
 
 from models.tracked_person import TrackedPerson
+from models.types import BoundingBox
+from config.settings import (
+    PERSON_CLASS_ID,
+    TRACK_PERSIST
+)
 
 
 logger = logging.getLogger(__name__)
@@ -18,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class PersonTracker:
     """
-    Tracks people across video frames using YOLO and ByteTrack.
+    Detects and tracks people across video frames using YOLOv8 and ByteTrack.
     """
 
     def __init__(self, model_name: str = "yolov8n.pt") -> None:
@@ -35,7 +42,7 @@ class PersonTracker:
 
         logger.info("Tracking model loaded successfully.")
 
-    def track(self, frame) -> list[TrackedPerson]:
+    def track(self, frame: cv2.typing.MatLike) -> list[TrackedPerson]:
         """
         Track people in a frame.
 
@@ -50,7 +57,7 @@ class PersonTracker:
 
         results = self.model.track(
             frame,
-            persist=True,
+            persist=TRACK_PERSIST,
             verbose=False,
         )
 
@@ -63,7 +70,7 @@ class PersonTracker:
 
                 class_id = int(box.cls[0])
 
-                if class_id != 0:
+                if class_id != PERSON_CLASS_ID:
                     continue
 
                 if box.id is None:
@@ -73,12 +80,14 @@ class PersonTracker:
 
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
 
+                bbox: BoundingBox = (x1, y1, x2, y2)
+
                 confidence = float(box.conf[0])
 
                 tracked_people.append(
                     TrackedPerson(
                         track_id=track_id,
-                        bbox=(x1, y1, x2, y2),
+                        bbox=bbox,
                         confidence=confidence,
                     )
                 )

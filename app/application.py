@@ -39,8 +39,72 @@ class Application:
         self.tracker = PersonTracker()
         self.pose_estimator = PoseEstimator()
 
-        self.frame_count = 0
-        self.pose_cache = {}
+        self.frame_count: int = 0
+        self.pose_cache: dict[int, object] = {}
+    
+
+    def _should_run_pose(self, people_count: int) -> bool:
+        """
+        Determine whether pose estimation should run
+        for the current frame.
+        """
+
+        if people_count == 0:
+            return False
+
+        if people_count == 1:
+            return (
+                self.frame_count
+                % POSE_INTERVAL_SINGLE_PERSON
+                == 0
+            )
+
+        if people_count <= 3:
+            return (
+                self.frame_count
+                % POSE_INTERVAL_FEW_PEOPLE
+                == 0
+            )
+
+        return (
+            self.frame_count
+            % POSE_INTERVAL_MANY_PEOPLE
+            == 0
+        )
+    
+
+    def _extract_person_roi(self, frame: cv2.typing.MatLike, person) -> cv2.typing.MatLike | None:
+        """
+        Extract a valid person ROI from the frame.
+
+        Args:
+            frame: Current video frame.
+            person: Tracked person.
+
+        Returns:
+            Cropped person ROI, or None if the ROI is too small.
+        """
+
+        x1, y1, x2, y2 = person.bbox
+
+        width = x2 - x1
+        height = y2 - y1
+
+        if (
+            width < MIN_PERSON_WIDTH
+            or height < MIN_PERSON_HEIGHT
+        ):
+            return None
+
+        frame_height, frame_width = frame.shape[:2]
+
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(frame_width, x2)
+        y2 = min(frame_height, y2)
+
+        return frame[y1:y2, x1:x2]
+
 
     def run(self) -> None:
         """
@@ -71,57 +135,14 @@ class Application:
 
                 self.frame_count += 1
 
-                people_count = len(tracked_people)
-
-                if people_count == 0:
-
-                    run_pose = False
-
-                elif people_count == 1:
-
-                    run_pose = (
-                        self.frame_count
-                        % POSE_INTERVAL_SINGLE_PERSON
-                        == 0
-                    )
-
-                elif people_count <= 3:
-
-                    run_pose = (
-                        self.frame_count
-                        % POSE_INTERVAL_FEW_PEOPLE
-                        == 0
-                    )
-
-                else:
-
-                    run_pose = (
-                        self.frame_count
-                        % POSE_INTERVAL_MANY_PEOPLE
-                        == 0
-                    )
+                run_pose = self._should_run_pose(len(tracked_people))
 
                 for person in tracked_people:
 
-                    x1, y1, x2, y2 = person.bbox
+                    person_roi = self._extract_person_roi(frame, person)
 
-                    width = x2 - x1
-                    height = y2 - y1
-
-                    if (
-                        width < MIN_PERSON_WIDTH
-                        or height < MIN_PERSON_HEIGHT
-                    ):
+                    if person_roi is None:
                         continue
-
-                    frame_height, frame_width = frame.shape[:2]
-
-                    x1 = max(0, x1)
-                    y1 = max(0, y1)
-                    x2 = min(frame_width, x2)
-                    y2 = min(frame_height, y2)
-
-                    person_roi = frame[y1:y2, x1:x2]
 
                     if run_pose:
 

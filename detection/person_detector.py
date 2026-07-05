@@ -8,10 +8,13 @@ from __future__ import annotations
 
 import logging
 
+import cv2
+
 from ultralytics import YOLO
 
 from models.person_detection import PersonDetection
-
+from config.settings import PERSON_CLASS_ID
+from models.types import BoundingBox
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +23,6 @@ class PersonDetector:
     """
     Detects people in video frames using YOLO.
     """
-
-    PERSON_CLASS_ID = 0
 
     def __init__(self, model_name: str = "yolov8n.pt") -> None:
         """
@@ -37,7 +38,7 @@ class PersonDetector:
 
         logger.info("YOLO model loaded successfully.")
 
-    def detect(self, frame) -> list[dict]:
+    def detect(self, frame: cv2.typing.MatLike) -> list[PersonDetection]:
         """
         Detect people in a frame.
 
@@ -45,7 +46,7 @@ class PersonDetector:
             frame: OpenCV frame.
 
         Returns:
-            List of detected people.
+            A list of detected people in the current frame.
         """
 
         detections: list[PersonDetection] = []
@@ -58,16 +59,18 @@ class PersonDetector:
 
                 class_id = int(box.cls[0])
 
-                if class_id != self.PERSON_CLASS_ID:
+                if class_id != PERSON_CLASS_ID:
                     continue
 
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
+
+                bbox: BoundingBox = (x1, y1, x2, y2)
 
                 confidence = float(box.conf[0])
 
                 detections.append(
                     PersonDetection(
-                        bbox=(x1, y1, x2, y2),
+                        bbox=bbox,
                         confidence=confidence,
                     )
                 )

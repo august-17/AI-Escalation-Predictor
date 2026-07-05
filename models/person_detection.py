@@ -6,12 +6,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from models.types import BoundingBox
+
 
 @dataclass(slots=True)
 class PersonDetection:
     """
-    Represents a single detected person.
+    Represents a person detected in a single video frame.
     """
 
-    bbox: tuple[int, int, int, int]
+    bbox: BoundingBox
     confidence: float

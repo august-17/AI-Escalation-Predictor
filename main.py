@@ -1,6 +1,7 @@
 """
 Main entry point for the AI Escalation Predictor application.
 """
+
 from __future__ import annotations
 
 import logging

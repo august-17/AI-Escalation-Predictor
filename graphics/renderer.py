@@ -9,6 +9,7 @@ from __future__ import annotations
 import cv2
 
 from models.tracked_person import TrackedPerson
+from models.person_detection import PersonDetection
 
 class Renderer:
     """
@@ -16,7 +17,7 @@ class Renderer:
     """
 
     @staticmethod
-    def draw_fps(frame, fps: float) -> None:
+    def draw_fps(frame: cv2.typing.MatLike, fps: float) -> None:
         """
         Draw the current FPS on the frame.
 
@@ -37,7 +38,7 @@ class Renderer:
 
 
     @staticmethod
-    def draw_detections(frame, detections: list[dict]) -> None:
+    def draw_detections(frame: cv2.typing.MatLike, detections: list[PersonDetection]) -> None:
         """
         Draw person detections on the frame.
 
@@ -48,7 +49,9 @@ class Renderer:
 
         for detection in detections:
 
-            x1, y1, x2, y2 = detection.bbox
+            bbox = detection.bbox
+            x1, y1, x2, y2 = bbox
+            
             confidence = detection.confidence
 
             cv2.rectangle(
@@ -74,7 +77,7 @@ class Renderer:
 
     @staticmethod
     def draw_tracked_people(
-        frame,
+        frame: cv2.typing.MatLike,
         tracked_people: list[TrackedPerson],
     ) -> None:
         """
@@ -87,7 +90,9 @@ class Renderer:
 
         for person in tracked_people:
 
-            x1, y1, x2, y2 = person.bbox
+            bbox = person.bbox
+
+            x1, y1, x2, y2 = bbox
 
             cv2.rectangle(
                 frame,
