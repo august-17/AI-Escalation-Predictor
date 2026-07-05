@@ -11,7 +11,7 @@ import cv2
 from camera.camera import Camera
 from camera.fps import FPSCounter
 from graphics.renderer import Renderer
-from detection.person_detector import PersonDetector
+from tracking.person_tracker import PersonTracker
 
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ class Application:
         """
         self.camera = Camera()
         self.fps_counter = FPSCounter()
-        self.detector = PersonDetector()
+        self.tracker = PersonTracker()
 
     def run(self) -> None:
         """
@@ -55,9 +55,9 @@ class Application:
                     logger.error("Unable to read frame.")
                     break
 
-                detections = self.detector.detect(frame)
+                tracked_people = self.tracker.track(frame)
 
-                Renderer.draw_detections(frame, detections)
+                logger.info("Tracked people: %d", len(tracked_people))
 
                 self.fps_counter.update()
 
