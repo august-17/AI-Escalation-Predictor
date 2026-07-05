@@ -1,14 +1,15 @@
 """
 pose_estimator.py
 
-Provides a YOLO Pose based pose estimator.
+Provides a MediaPipe-based human pose estimator.
 """
 
 from __future__ import annotations
 
 import logging
 
-from ultralytics import YOLO
+import cv2
+import mediapipe as mp
 
 
 logger = logging.getLogger(__name__)
@@ -16,32 +17,41 @@ logger = logging.getLogger(__name__)
 
 class PoseEstimator:
     """
-    Estimates human body keypoints using YOLO Pose.
+    Estimates human pose landmarks using MediaPipe.
     """
 
-    def __init__(self, model_name: str = "yolov8n-pose.pt") -> None:
+    def __init__(
+        self,
+        min_detection_confidence: float = 0.5,
+        min_tracking_confidence: float = 0.5,
+    ) -> None:
+
+        self._mp_pose = mp.solutions.pose
+
+        self.pose = self._mp_pose.Pose(
+            static_image_mode=False,
+            model_complexity=1,
+            smooth_landmarks=True,
+            min_detection_confidence=min_detection_confidence,
+            min_tracking_confidence=min_tracking_confidence,
+        )
+
+        logger.info("MediaPipe Pose initialized successfully.")
+
+    def estimate(self, person_roi):
         """
-        Initialize the pose estimator.
+        Estimate pose landmarks for a cropped person image.
 
         Args:
-            model_name: YOLO pose model filename.
-        """
-
-        logger.info("Loading pose model: %s", model_name)
-
-        self.model = YOLO(model_name)
-
-        logger.info("Pose model loaded successfully.")
-
-    def estimate(self, frame):
-        """
-        Estimate poses in a frame.
-
-        Args:
-            frame: OpenCV frame.
+            person_roi: Cropped image containing a single person.
 
         Returns:
-            YOLO pose results.
+            MediaPipe pose results.
         """
 
-        return self.model(frame, verbose=False)
+        if person_roi.size == 0:
+            return None
+
+        rgb_roi = cv2.cvtColor(person_roi, cv2.COLOR_BGR2RGB)
+
+        return self.pose.process(rgb_roi)
