@@ -122,13 +122,37 @@ class Renderer:
     @staticmethod
     def draw_pose(frame: cv2.typing.MatLike, pose: PoseResult | None) -> None:
         """
-        Draw pose landmarks.
+        Draw pose landmarks and skeleton.
         """
 
         if pose is None:
             return
+        
+        landmarks = pose.landmarks
 
-        for landmark in pose.landmarks:
+        if len(landmarks) == 0:
+            return
+        
+        for start_index, end_index in POSE_CONNECTIONS:
+
+            start = landmarks[start_index]
+            end = landmarks[end_index]
+
+            if (
+                start.visibility < 0.5
+                or end.visibility < 0.5
+            ):
+                continue
+
+            cv2.line(
+                frame,
+                (start.x, start.y),
+                (end.x, end.y),
+                (0, 255, 255),
+                2,
+            )
+
+        for landmark in landmarks:
 
             if landmark.visibility < 0.5:
                 continue
