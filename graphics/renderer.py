@@ -12,6 +12,7 @@ from models.tracked_person import TrackedPerson
 from models.person_detection import PersonDetection
 from models.pose_result import PoseResult
 from pose.pose_connections import POSE_CONNECTIONS
+from config.settings import POSE_MIN_VISIBILITY
 
 class Renderer:
     """
@@ -35,7 +36,7 @@ class Renderer:
             cv2.FONT_HERSHEY_SIMPLEX,
             0.8,
             (0, 255, 0),
-            2,
+            2
         )
 
 
@@ -61,7 +62,7 @@ class Renderer:
                 (x1, y1),
                 (x2, y2),
                 (0, 255, 0),
-                2,
+                2
             )
 
             label = f"Person {confidence:.2f}"
@@ -73,12 +74,16 @@ class Renderer:
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.6,
                 (0, 255, 0),
-                2,
+                2
             )
 
 
     @staticmethod
-    def draw_tracked_people(frame: cv2.typing.MatLike, tracked_people: list[TrackedPerson]) -> None:
+    def draw_tracked_people(
+        frame: cv2.typing.MatLike, 
+        tracked_people: list[TrackedPerson],
+        risk_scores: dict[int, float]
+    ) -> None:
         """
         Draw tracked people with their tracking IDs.
 
@@ -98,14 +103,16 @@ class Renderer:
                 (x1, y1),
                 (x2, y2),
                 (0, 255, 0),
-                2,
+                2
             )
 
             Renderer.draw_pose(frame, person.pose)
 
+            risk = risk_scores.get(person.track_id, 0.0)
+
             label = (
                 f"ID: {person.track_id} | "
-                f"Person {person.confidence:.2f}"
+                f"Risk: {risk:.2f}"
             )
 
             cv2.putText(
@@ -115,7 +122,7 @@ class Renderer:
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.6,
                 (0, 255, 0),
-                2,
+                2
             )
 
 
@@ -129,9 +136,6 @@ class Renderer:
             return
         
         landmarks = pose.landmarks
-
-        if len(landmarks) == 0:
-            return
         
         for start_index, end_index in POSE_CONNECTIONS:
 
@@ -139,8 +143,8 @@ class Renderer:
             end = landmarks[end_index]
 
             if (
-                start.visibility < 0.5
-                or end.visibility < 0.5
+                start.visibility < POSE_MIN_VISIBILITY
+                or end.visibility < POSE_MIN_VISIBILITY
             ):
                 continue
 
@@ -149,12 +153,12 @@ class Renderer:
                 (start.x, start.y),
                 (end.x, end.y),
                 (0, 255, 255),
-                2,
+                2
             )
 
         for landmark in landmarks:
 
-            if landmark.visibility < 0.5:
+            if landmark.visibility < POSE_MIN_VISIBILITY:
                 continue
 
             cv2.circle(
@@ -162,5 +166,5 @@ class Renderer:
                 (landmark.x, landmark.y),
                 4,
                 (0, 255, 255),
-                -1,
+                -1
             )

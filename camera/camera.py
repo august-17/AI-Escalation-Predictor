@@ -14,7 +14,7 @@ import cv2
 from config.settings import (
     CAMERA_INDEX,
     CAMERA_WIDTH,
-    CAMERA_HEIGHT,
+    CAMERA_HEIGHT
 )
 
 logger = logging.getLogger(__name__)
@@ -45,6 +45,7 @@ class Camera:
         self.camera_index = camera_index
         self.capture: Optional[cv2.VideoCapture] = None
 
+
     def open(self) -> bool:
         """
         Open the camera.
@@ -64,6 +65,7 @@ class Camera:
         logger.info("Camera %s opened successfully.", self.camera_index)
         return True
 
+
     def read(self) -> tuple[bool, cv2.typing.MatLike | None]:
         """
         Read a frame from the camera.
@@ -77,6 +79,7 @@ class Camera:
 
         return self.capture.read()
 
+
     def release(self) -> None:
         """
         Release the camera.
@@ -85,6 +88,7 @@ class Camera:
             self.capture.release()
             self.capture = None
             logger.info("Camera released.")
+
 
     def get_resolution(self) -> tuple[int, int]:
         """

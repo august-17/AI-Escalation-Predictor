@@ -23,7 +23,7 @@ class PoseEstimator:
     def __init__(
         self,
         min_detection_confidence: float = 0.5,
-        min_tracking_confidence: float = 0.5,
+        min_tracking_confidence: float = 0.5
     ) -> None:
 
         self._mp_pose = mp.solutions.pose
@@ -33,10 +33,11 @@ class PoseEstimator:
             model_complexity=1,
             smooth_landmarks=True,
             min_detection_confidence=min_detection_confidence,
-            min_tracking_confidence=min_tracking_confidence,
+            min_tracking_confidence=min_tracking_confidence
         )
 
         logger.info("MediaPipe Pose initialized successfully.")
+
 
     def estimate(self, person_roi: cv2.typing.MatLike):
         """

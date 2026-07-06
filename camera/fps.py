@@ -21,6 +21,7 @@ class FPSCounter:
         self._fps: float = 0.0
         self._previous_time: float = time.perf_counter()
 
+
     def update(self) -> None:
         """
         Update the FPS calculation.
@@ -37,6 +38,7 @@ class FPSCounter:
             self._fps = self._frame_count / elapsed
             self._frame_count = 0
             self._previous_time = current_time
+
 
     def get_fps(self) -> float:
         """

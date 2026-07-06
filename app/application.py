@@ -15,6 +15,7 @@ from tracking.person_tracker import PersonTracker
 from pose.landmark_converter import LandmarkConverter
 from models.pose_result import PoseResult
 from pose.pose_estimator import PoseEstimator
+from analysis.risk_engine import RiskEngine
 from config.settings import (
     POSE_INTERVAL_SINGLE_PERSON,
     POSE_INTERVAL_FEW_PEOPLE,
@@ -43,6 +44,8 @@ class Application:
 
         self.frame_count: int = 0
         self.pose_cache: dict[int, PoseResult] = {}
+
+        self.risk_engine = RiskEngine()
     
 
     def _should_run_pose(self, people_count: int) -> bool:
@@ -55,24 +58,12 @@ class Application:
             return False
 
         if people_count == 1:
-            return (
-                self.frame_count
-                % POSE_INTERVAL_SINGLE_PERSON
-                == 0
-            )
+            return (self.frame_count % POSE_INTERVAL_SINGLE_PERSON == 0)
 
         if people_count <= 3:
-            return (
-                self.frame_count
-                % POSE_INTERVAL_FEW_PEOPLE
-                == 0
-            )
+            return (self.frame_count % POSE_INTERVAL_FEW_PEOPLE == 0)
 
-        return (
-            self.frame_count
-            % POSE_INTERVAL_MANY_PEOPLE
-            == 0
-        )
+        return (self.frame_count % POSE_INTERVAL_MANY_PEOPLE == 0)
     
 
     def _extract_person_roi(self, frame: cv2.typing.MatLike, person) -> cv2.typing.MatLike | None:
@@ -157,7 +148,7 @@ class Application:
                             roi_x=x1,
                             roi_y=y1,
                             roi_width=x2 - x1,
-                            roi_height=y2 - y1,
+                            roi_height=y2 - y1
                         )
 
                         self.pose_cache[person.track_id] = pose_result
@@ -179,7 +170,9 @@ class Application:
                     if track_id in active_ids
                 }
 
-                Renderer.draw_tracked_people(frame, tracked_people)
+                risk_scores = self.risk_engine.compute(tracked_people)
+
+                Renderer.draw_tracked_people(frame, tracked_people, risk_scores)
 
                 for person in tracked_people:
 

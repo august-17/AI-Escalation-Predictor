@@ -16,7 +16,8 @@ from models.tracked_person import TrackedPerson
 from models.types import BoundingBox
 from config.settings import (
     PERSON_CLASS_ID,
-    TRACK_PERSIST
+    TRACK_PERSIST,
+    TRACK_CONFIDENCE_THRESHOLD
 )
 
 
@@ -42,6 +43,7 @@ class PersonTracker:
 
         logger.info("Tracking model loaded successfully.")
 
+
     def track(self, frame: cv2.typing.MatLike) -> list[TrackedPerson]:
         """
         Track people in a frame.
@@ -58,7 +60,7 @@ class PersonTracker:
         results = self.model.track(
             frame,
             persist=TRACK_PERSIST,
-            verbose=False,
+            verbose=False
         )
 
         for result in results:
@@ -84,11 +86,14 @@ class PersonTracker:
 
                 confidence = float(box.conf[0])
 
+                if confidence < TRACK_CONFIDENCE_THRESHOLD:
+                    continue
+
                 tracked_people.append(
                     TrackedPerson(
                         track_id=track_id,
                         bbox=bbox,
-                        confidence=confidence,
+                        confidence=confidence
                     )
                 )
 

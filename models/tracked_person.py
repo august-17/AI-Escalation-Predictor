@@ -10,7 +10,6 @@ from models.pose_result import PoseResult
 from models.types import BoundingBox
 
 
-
 @dataclass(slots=True)
 class TrackedPerson:
     """

@@ -38,6 +38,7 @@ class PersonDetector:
 
         logger.info("YOLO model loaded successfully.")
 
+
     def detect(self, frame: cv2.typing.MatLike) -> list[PersonDetection]:
         """
         Detect people in a frame.
@@ -71,7 +72,7 @@ class PersonDetector:
                 detections.append(
                     PersonDetection(
                         bbox=bbox,
-                        confidence=confidence,
+                        confidence=confidence
                     )
                 )
 

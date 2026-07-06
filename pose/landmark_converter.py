@@ -19,7 +19,7 @@ class LandmarkConverter:
         roi_x: int,
         roi_y: int,
         roi_width: int,
-        roi_height: int,
+        roi_height: int
     ) -> PoseResult:
 
         if (
@@ -39,7 +39,7 @@ class LandmarkConverter:
                 PoseLandmark(
                     x=x,
                     y=y,
-                    visibility=landmark.visibility,
+                    visibility=landmark.visibility
                 )
             )
 
