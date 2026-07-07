@@ -151,13 +151,19 @@ class Application:
                             roi_height=y2 - y1
                         )
 
-                        self.pose_cache[person.track_id] = pose_result
+                        if len(pose_result.landmarks) == 33:
+
+                            self.pose_cache[person.track_id] = pose_result
+
+                        else:
+
+                            pose_result = self.pose_cache.get(person.track_id)
 
                     else:
 
-                        pose_results = self.pose_cache.get(person.track_id)
+                        pose_result = self.pose_cache.get(person.track_id)
 
-                    person.pose = pose_results
+                    person.pose = pose_result
 
                 active_ids = {
                     person.track_id

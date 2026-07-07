@@ -135,6 +135,9 @@ class Renderer:
         if pose is None:
             return
         
+        if len(pose.landmarks) != 33:
+            return
+        
         landmarks = pose.landmarks
         
         for start_index, end_index in POSE_CONNECTIONS:
