@@ -28,18 +28,29 @@ class PoseEstimator:
 
         self._mp_pose = mp.solutions.pose
 
-        self.pose = self._mp_pose.Pose(
-            static_image_mode=False,
-            model_complexity=1,
-            smooth_landmarks=True,
-            min_detection_confidence=min_detection_confidence,
-            min_tracking_confidence=min_tracking_confidence
-        )
+        self._pose_instances: dict[int, mp.solutions.pose.Pose] = {}
+
+        self._min_detection_confidence = min_detection_confidence
+        self._min_tracking_confidence = min_tracking_confidence
 
         logger.info("MediaPipe Pose initialized successfully.")
 
 
-    def estimate(self, person_roi: cv2.typing.MatLike):
+    def _create_pose(self):
+        """
+        Create a new MediaPipe Pose instance.
+        """
+
+        return self._mp_pose.Pose(
+            static_image_mode=False,
+            model_complexity=1,
+            smooth_landmarks=True,
+            min_detection_confidence=self._min_detection_confidence,
+            min_tracking_confidence=self._min_tracking_confidence
+        )
+
+
+    def estimate(self, track_id: int, person_roi: cv2.typing.MatLike):
         """
         Estimate pose landmarks for a cropped person image.
 
@@ -56,4 +67,25 @@ class PoseEstimator:
 
         rgb_roi = cv2.cvtColor(person_roi, cv2.COLOR_BGR2RGB)
 
-        return self.pose.process(rgb_roi)
+        if track_id not in self._pose_instances:
+
+            self._pose_instances[track_id] = self._create_pose()
+
+        pose = self._pose_instances[track_id]
+
+        return pose.process(rgb_roi)
+    
+
+
+    def remove_inactive(self, active_ids: set[int]) -> None:
+        """
+        Remove pose trackers belonging to people
+        who are no longer being tracked.
+        """
+
+        self._pose_instances = {
+            track_id: pose
+            for track_id, pose
+            in self._pose_instances.items()
+            if track_id in active_ids
+        }

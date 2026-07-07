@@ -73,8 +73,6 @@ class RiskEngine:
                     second
                 )
 
-                print(f"Distance: {distance:.1f}")
-
                 if distance < RISK_DISTANCE_THRESHOLD - RISK_DISTANCE_BUFFER:
 
                     risk_scores[first.track_id] += RISK_PROXIMITY_SCORE

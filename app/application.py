@@ -8,6 +8,8 @@ import logging
 
 import cv2
 
+import time
+
 from camera.camera import Camera
 from camera.fps import FPSCounter
 from graphics.renderer import Renderer
@@ -124,11 +126,15 @@ class Application:
                     logger.error("Unable to read frame.")
                     break
 
+                start = time.perf_counter()
                 tracked_people = self.tracker.track(frame)
+                yolo_time = time.perf_counter() - start
 
                 self.frame_count += 1
 
                 run_pose = self._should_run_pose(len(tracked_people))
+
+                pose_start = time.perf_counter()
 
                 for person in tracked_people:
 
@@ -139,7 +145,7 @@ class Application:
 
                     if run_pose:
 
-                        mp_pose_result = self.pose_estimator.estimate(person_roi)
+                        mp_pose_result = self.pose_estimator.estimate(person.track_id, person_roi)
 
                         x1, y1, x2, y2 = person.bbox
 
@@ -165,6 +171,8 @@ class Application:
 
                     person.pose = pose_result
 
+                pose_time = time.perf_counter() - pose_start
+
                 active_ids = {
                     person.track_id
                     for person in tracked_people
@@ -176,7 +184,19 @@ class Application:
                     if track_id in active_ids
                 }
 
+                self.pose_estimator.remove_inactive(active_ids)
+                
+                start = time.perf_counter()
                 risk_scores = self.risk_engine.compute(tracked_people)
+                risk_time = time.perf_counter() - start
+
+                if self.frame_count % 60 == 0:
+                    logger.info(
+                        "YOLO: %.3f ms | Pose: %.3f ms | Risk: %.3f ms",
+                        yolo_time * 1000,
+                        pose_time * 1000,
+                        risk_time * 1000,
+                    )
 
                 Renderer.draw_tracked_people(frame, tracked_people, risk_scores)
 
