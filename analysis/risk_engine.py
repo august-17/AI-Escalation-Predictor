@@ -9,11 +9,14 @@ import math
 from analysis.pose_analyzer import PoseAnalyzer
 from models.tracked_person import TrackedPerson
 from config.settings import (
-    RISK_DISTANCE_THRESHOLD,
-    RISK_DISTANCE_BUFFER,
-    RISK_PROXIMITY_SCORE,
-    BODY_MOVEMENT_THRESHOLD,
-    BODY_MOVEMENT_SCORE
+    PROXIMITY_START_DISTANCE,
+    PROXIMITY_FULL_RISK_DISTANCE,
+    PROXIMITY_RISK_WEIGHT,
+    BODY_MOVEMENT_MIN_SPEED,
+    BODY_MOVEMENT_MAX_SPEED,
+    BODY_MOVEMENT_RISK_WEIGHT,
+    RISK_INCREASE_MEMORY,
+    RISK_DECREASE_MEMORY
 )
 
 
@@ -31,6 +34,8 @@ class RiskEngine:
         """
 
         self._previous_body_centers: dict[int, tuple[int, int]] = {}
+
+        self._previous_risk_scores: dict[int, float] = {}
 
 
     @staticmethod
@@ -76,18 +81,17 @@ class RiskEngine:
                     second
                 )
 
-                if distance < (
-                    RISK_DISTANCE_THRESHOLD
-                    - RISK_DISTANCE_BUFFER
-                ):
+                if distance >= PROXIMITY_START_DISTANCE:
+                    continue
 
-                    risk_scores[first.track_id] += (
-                        RISK_PROXIMITY_SCORE
-                    )
+                normalized = (PROXIMITY_START_DISTANCE - distance) / (PROXIMITY_START_DISTANCE - PROXIMITY_FULL_RISK_DISTANCE)
 
-                    risk_scores[second.track_id] += (
-                        RISK_PROXIMITY_SCORE
-                    )
+                normalized = max(0.0, min(normalized, 1.0))
+
+                proximity_risk = (normalized * PROXIMITY_RISK_WEIGHT)
+
+                risk_scores[first.track_id] += proximity_risk
+                risk_scores[second.track_id] += proximity_risk
 
 
     def _compute_body_movement_risk(
@@ -126,20 +130,72 @@ class RiskEngine:
                     current[1] - previous[1]
                 )
 
-                if movement > BODY_MOVEMENT_THRESHOLD:
+                if movement > BODY_MOVEMENT_MIN_SPEED:
 
-                    risk_scores[person.track_id] += (
-                        BODY_MOVEMENT_SCORE
-                    )
+                    normalized = (movement - BODY_MOVEMENT_MIN_SPEED) / (BODY_MOVEMENT_MAX_SPEED - BODY_MOVEMENT_MIN_SPEED)
 
-            self._previous_body_centers[
-                person.track_id
-            ] = current
+                    normalized = max(0.0, min(normalized, 1.0))
+
+                    risk_scores[person.track_id] += (normalized * BODY_MOVEMENT_RISK_WEIGHT)
+
+            self._previous_body_centers[person.track_id] = current
 
         self._previous_body_centers = {
             track_id: center
             for track_id, center
             in self._previous_body_centers.items()
+            if track_id in active_ids
+        }
+
+
+    def _apply_risk_memory(
+        self,
+        people: list[TrackedPerson],
+        risk_scores: dict[int, float]
+    ) -> None:
+        """
+        Smooth risk scores over time.
+        """
+
+        active_ids: set[int] = set()
+
+        for person in people:
+
+            active_ids.add(person.track_id)
+
+            previous = self._previous_risk_scores.get(
+                person.track_id,
+                0.0
+            )
+
+            current = risk_scores[person.track_id]
+
+            if current > previous:
+
+                smoothed = (
+                    previous * RISK_INCREASE_MEMORY
+                    + current * (1.0 - RISK_INCREASE_MEMORY)
+                )
+
+            else:
+
+                smoothed = (
+                    previous * RISK_DECREASE_MEMORY
+                    + current * (1.0 - RISK_DECREASE_MEMORY)
+                )
+
+            smoothed = max(0.0, min(smoothed, 1.0))
+            
+            risk_scores[person.track_id] = smoothed
+
+            self._previous_risk_scores[
+                person.track_id
+            ] = smoothed
+
+        self._previous_risk_scores = {
+            track_id: risk
+            for track_id, risk
+            in self._previous_risk_scores.items()
             if track_id in active_ids
         }
 
@@ -163,5 +219,7 @@ class RiskEngine:
         self._compute_proximity_risk(people, risk_scores)
 
         self._compute_body_movement_risk(people, risk_scores)
+
+        self._apply_risk_memory(people, risk_scores)
 
         return risk_scores

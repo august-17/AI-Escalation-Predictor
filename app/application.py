@@ -190,6 +190,15 @@ class Application:
                 risk_scores = self.risk_engine.compute(tracked_people)
                 risk_time = time.perf_counter() - start
 
+                if self.frame_count % 15 == 0:      # roughly once per second at ~30 FPS
+                    print("\nCurrent Risk Scores")
+
+                    for person in tracked_people:
+                        print(
+                            f"ID {person.track_id}: "
+                            f"{risk_scores.get(person.track_id, 0.0):.3f}"
+                        )
+
                 if self.frame_count % 60 == 0:
                     logger.info(
                         "YOLO: %.3f ms | Pose: %.3f ms | Risk: %.3f ms",
