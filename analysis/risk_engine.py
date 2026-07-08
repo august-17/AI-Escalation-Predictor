@@ -8,6 +8,7 @@ import math
 
 from analysis.pose_analyzer import PoseAnalyzer
 from models.tracked_person import TrackedPerson
+from models.risk_breakdown import RiskBreakdown
 from config.settings import (
     PROXIMITY_START_DISTANCE,
     PROXIMITY_FULL_RISK_DISTANCE,
@@ -54,6 +55,9 @@ class RiskEngine:
         first_center = PoseAnalyzer.body_center(first.pose)
         second_center = PoseAnalyzer.body_center(second.pose)
 
+        print(f"Center 1: ({first_center.x}, {first_center.y})")
+        print(f"Center 2: ({second_center.x}, {second_center.y})")
+
         if first_center is None or second_center is None:
             return float("inf")
 
@@ -65,12 +69,17 @@ class RiskEngine:
 
     def _compute_proximity_risk(
         self,
-        people: list[TrackedPerson],
-        risk_scores: dict[int, float]
-    ) -> None:
+        people: list[TrackedPerson]
+    ) -> dict[int, float]:
         """
         Update risk scores based on the proximity of tracked people.
         """
+        print(f"People detected: {len(people)}")
+
+        proximity_scores = {
+            person.track_id: 0.0
+            for person in people
+        }
 
         for i, first in enumerate(people):
 
@@ -81,8 +90,13 @@ class RiskEngine:
                     second
                 )
 
+                print(f"Distance: {distance:.1f}")
+
                 if distance >= PROXIMITY_START_DISTANCE:
+                    print("Rejected")
                     continue
+
+                print("Accepted")
 
                 normalized = (PROXIMITY_START_DISTANCE - distance) / (PROXIMITY_START_DISTANCE - PROXIMITY_FULL_RISK_DISTANCE)
 
@@ -90,19 +104,23 @@ class RiskEngine:
 
                 proximity_risk = (normalized * PROXIMITY_RISK_WEIGHT)
 
-                risk_scores[first.track_id] += proximity_risk
-                risk_scores[second.track_id] += proximity_risk
+                proximity_scores[first.track_id] += proximity_risk
+                proximity_scores[second.track_id] += proximity_risk
+
+        return proximity_scores
 
 
     def _compute_body_movement_risk(
         self,
-        people: list[TrackedPerson],
-        risk_scores: dict[int, float]
-    ) -> None:
+        people: list[TrackedPerson]
+    ) -> dict[int, float]:
         """
         Update risk scores based on body movement.
         """
-
+        movement_scores = {
+            person.track_id: 0.0
+            for person in people
+        }
         active_ids: set[int] = set()
 
         for person in people:
@@ -136,7 +154,7 @@ class RiskEngine:
 
                     normalized = max(0.0, min(normalized, 1.0))
 
-                    risk_scores[person.track_id] += (normalized * BODY_MOVEMENT_RISK_WEIGHT)
+                    movement_scores[person.track_id] += (normalized * BODY_MOVEMENT_RISK_WEIGHT)
 
             self._previous_body_centers[person.track_id] = current
 
@@ -146,6 +164,8 @@ class RiskEngine:
             in self._previous_body_centers.items()
             if track_id in active_ids
         }
+
+        return movement_scores
 
 
     def _apply_risk_memory(
@@ -185,7 +205,7 @@ class RiskEngine:
                 )
 
             smoothed = max(0.0, min(smoothed, 1.0))
-            
+
             risk_scores[person.track_id] = smoothed
 
             self._previous_risk_scores[
@@ -200,7 +220,50 @@ class RiskEngine:
         }
 
 
-    def compute(self, people: list[TrackedPerson]) -> dict[int, float]:
+    def _combine_risk_scores(
+        self,
+        people: list[TrackedPerson],
+        proximity_scores: dict[int, float],
+        movement_scores: dict[int, float]
+    ) -> tuple[
+        dict[int, float],
+        dict[int, RiskBreakdown]
+    ]:
+        """
+        Combine individual feature scores into a single
+        risk score for each tracked person.
+        """
+
+        risk_scores: dict[int, float] = {}
+
+        debug_scores: dict[int, RiskBreakdown] = {}
+
+        for person in people:
+
+            proximity = proximity_scores.get(person.track_id, 0.0)
+
+            movement = movement_scores.get(person.track_id, 0.0)
+
+            total = proximity + movement
+
+            risk_scores[person.track_id] = total
+
+            debug_scores[person.track_id] = RiskBreakdown(
+                proximity=proximity,
+                movement=movement,
+                raw_total=total
+            )
+
+        return (risk_scores, debug_scores)
+
+
+    def compute(
+        self,
+        people: list[TrackedPerson]
+    ) -> tuple[
+        dict[int, float],
+        dict[int, RiskBreakdown]
+    ]:
         """
         Compute a risk score for each tracked person.
 
@@ -211,15 +274,22 @@ class RiskEngine:
             Dictionary mapping track IDs to risk scores.
         """
 
-        risk_scores = {
-            person.track_id: 0.0
-            for person in people
-        }
+        proximity_scores = self._compute_proximity_risk(people)
 
-        self._compute_proximity_risk(people, risk_scores)
+        movement_scores = self._compute_body_movement_risk(people)
 
-        self._compute_body_movement_risk(people, risk_scores)
+        risk_scores, debug_scores = (
+            self._combine_risk_scores(
+                people,
+                proximity_scores,
+                movement_scores
+            )
+        )
 
         self._apply_risk_memory(people, risk_scores)
 
-        return risk_scores
+        for person in people:
+
+            debug_scores[person.track_id].smoothed_total = risk_scores[person.track_id]
+
+        return (risk_scores, debug_scores)

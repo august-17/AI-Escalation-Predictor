@@ -32,8 +32,11 @@ class LandmarkConverter:
 
         for landmark in pose_results.pose_landmarks.landmark:
 
-            x = int(landmark.x * roi_width) + roi_x
-            y = int(landmark.y * roi_height) + roi_y
+            normalized_x = min(max(landmark.x, 0.0), 1.0)
+            normalized_y = min(max(landmark.y, 0.0), 1.0)
+
+            x = int(normalized_x * roi_width) + roi_x
+            y = int(normalized_y * roi_height) + roi_y
 
             landmarks.append(
                 PoseLandmark(
