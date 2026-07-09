@@ -23,7 +23,8 @@ from config.settings import (
     POSE_INTERVAL_FEW_PEOPLE,
     POSE_INTERVAL_MANY_PEOPLE,
     MIN_PERSON_WIDTH,
-    MIN_PERSON_HEIGHT
+    MIN_PERSON_HEIGHT,
+    POSE_CACHE_TIMEOUT
 )
 
 
@@ -45,7 +46,7 @@ class Application:
         self.pose_estimator = PoseEstimator()
 
         self.frame_count: int = 0
-        self.pose_cache: dict[int, PoseResult] = {}
+        self.pose_cache: dict[int, tuple[PoseResult, float]] = {}
 
         self.risk_engine = RiskEngine()
     
@@ -136,6 +137,8 @@ class Application:
 
                 pose_start = time.perf_counter()
 
+                current_time = time.perf_counter()
+
                 for person in tracked_people:
 
                     person_roi = self._extract_person_roi(frame, person)
@@ -159,15 +162,38 @@ class Application:
 
                         if len(pose_result.landmarks) == 33:
 
-                            self.pose_cache[person.track_id] = pose_result
+                            self.pose_cache[person.track_id] = (pose_result, current_time)
 
                         else:
 
-                            pose_result = self.pose_cache.get(person.track_id)
+                            cached_pose = self.pose_cache.get(person.track_id)
 
+                            if cached_pose is not None:
+
+                                pose_result, timestamp = cached_pose
+
+                                if (current_time - timestamp > POSE_CACHE_TIMEOUT):
+
+                                    pose_result = None
+
+                            else:
+
+                                pose_result = None
                     else:
 
-                        pose_result = self.pose_cache.get(person.track_id)
+                        cached_pose = self.pose_cache.get(person.track_id)
+
+                        if cached_pose is not None:
+
+                            pose_result, timestamp = cached_pose
+
+                            if (current_time - timestamp > POSE_CACHE_TIMEOUT):
+
+                                pose_result = None
+
+                        else:
+
+                            pose_result = None
 
                     person.pose = pose_result
 
