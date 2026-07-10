@@ -19,7 +19,11 @@ from config.settings import (
     BODY_MOVEMENT_MAX_SPEED,
     BODY_MOVEMENT_RISK_WEIGHT,
     RISK_INCREASE_MEMORY,
-    RISK_DECREASE_MEMORY
+    RISK_DECREASE_MEMORY,
+    HAND_SPEED_MAX_PIXELS,
+    HAND_SPEED_FULL_RISK,
+    HAND_SPEED_MIN_SPEED,
+    HAND_SPEED_MAX_SCORE
 )
 
 
@@ -329,5 +333,46 @@ class RiskEngine:
                 self.previous_pose[person.track_id] = person.pose
 
                 continue
+
+            previous_left, previous_right = PoseAnalyzer.wrists(previous_pose)
+
+            if (
+                previous_left is None
+                or previous_right is None
+            ):
+
+                self.previous_pose[person.track_id] = person.pose
+
+                continue
+
+            left_speed = math.hypot(
+                current_left.x - previous_left.x,
+                current_left.y - previous_left.y,
+            )
+
+            right_speed = math.hypot(
+                current_right.x - previous_right.x,
+                current_right.y - previous_right.y,
+            )
+
+            hand_speed = (left_speed + right_speed) / 2
+
+            hand_speed = min(hand_speed, HAND_SPEED_MAX_PIXELS)
+
+            if hand_speed > HAND_SPEED_MIN_SPEED:
+
+                risk = (hand_speed - HAND_SPEED_MIN_SPEED) / (HAND_SPEED_FULL_RISK - HAND_SPEED_MIN_SPEED)
+
+                risk = max(0.0, min(risk, 1.0))
+
+                hand_speed_scores[person.track_id] = (risk * HAND_SPEED_MAX_SCORE)
+
+                print(
+                    f"ID {person.track_id} | "
+                    f"Hand Speed: {hand_speed:.1f} px | "
+                    f"Hand Risk: {hand_speed_scores[person.track_id]:.3f}"
+                )
+
+            self.previous_pose[person.track_id] = person.pose
 
         return hand_speed_scores
