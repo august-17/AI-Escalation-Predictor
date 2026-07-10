@@ -16,6 +16,6 @@ class RiskBreakdown:
 
     proximity: float = 0.0
     movement: float = 0.0
-
+    hand_speed: float = 0.0
     raw_total: float = 0.0
     smoothed_total: float = 0.0

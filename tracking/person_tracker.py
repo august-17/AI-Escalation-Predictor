@@ -90,10 +90,6 @@ class PersonTracker:
                 if confidence < TRACK_CONFIDENCE_THRESHOLD:
                     continue
 
-                print(
-                    f"ID {track_id} | Confidence: {confidence:.2f}"
-                )
-
                 tracked_people.append(
                     TrackedPerson(
                         track_id=track_id,

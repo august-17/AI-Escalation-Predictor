@@ -114,6 +114,7 @@ class Application:
             return
         
         width, height = self.camera.get_resolution()
+
         logger.info("Camera resolution: %d x %d", width, height)
 
         logger.info("Press 'Q' to quit.")
@@ -127,17 +128,15 @@ class Application:
                     logger.error("Unable to read frame.")
                     break
 
-                start = time.perf_counter()
+                yolo_start = time.perf_counter()
                 tracked_people = self.tracker.track(frame)
-                yolo_time = time.perf_counter() - start
+                yolo_time = time.perf_counter() - yolo_start
 
                 self.frame_count += 1
 
                 run_pose = self._should_run_pose(len(tracked_people))
 
                 pose_start = time.perf_counter()
-
-                current_time = time.perf_counter()
 
                 for person in tracked_people:
 
@@ -162,7 +161,7 @@ class Application:
 
                         if len(pose_result.landmarks) == 33:
 
-                            self.pose_cache[person.track_id] = (pose_result, current_time)
+                            self.pose_cache[person.track_id] = (pose_result, pose_start)
 
                         else:
 
@@ -172,7 +171,7 @@ class Application:
 
                                 pose_result, timestamp = cached_pose
 
-                                if (current_time - timestamp > POSE_CACHE_TIMEOUT):
+                                if (pose_start - timestamp > POSE_CACHE_TIMEOUT):
 
                                     pose_result = None
 
@@ -187,7 +186,7 @@ class Application:
 
                             pose_result, timestamp = cached_pose
 
-                            if (current_time - timestamp > POSE_CACHE_TIMEOUT):
+                            if (pose_start - timestamp > POSE_CACHE_TIMEOUT):
 
                                 pose_result = None
 
@@ -212,41 +211,9 @@ class Application:
 
                 self.pose_estimator.remove_inactive(active_ids)
                 
-                start = time.perf_counter()
-                risk_scores, debug_scores = self.risk_engine.compute(tracked_people)
-                risk_time = time.perf_counter() - start
-
-                if self.frame_count % 15 == 0:
-                    
-                    print()
-
-                    for person in tracked_people:
-
-                        scores = debug_scores[person.track_id]
-
-                        print(f"ID {person.track_id}")
-
-                        print(
-                            f"  Proximity      : "
-                            f"{scores.proximity:.3f}"
-                        )
-
-                        print(
-                            f"  Movement       : "
-                            f"{scores.movement:.3f}"
-                        )
-
-                        print(
-                            f"  Raw Total      : "
-                            f"{scores.raw_total:.3f}"
-                        )
-
-                        print(
-                            f"  Smoothed Total : "
-                            f"{scores.smoothed_total:.3f}"
-                        )
-
-                        print()
+                risk_start = time.perf_counter()
+                risk_scores, _ = self.risk_engine.compute(tracked_people)
+                risk_time = time.perf_counter() - risk_start
 
                 if self.frame_count % 60 == 0:
                     logger.info(

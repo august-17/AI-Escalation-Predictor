@@ -145,3 +145,21 @@ class PoseAnalyzer:
                 right.visibility
             )
         )
+    
+
+    @classmethod
+    def wrists(
+        cls,
+        pose: PoseResult
+    ) -> tuple[
+        PoseLandmark | None,
+        PoseLandmark | None
+    ]:
+        """
+        Return both wrist landmarks.
+        """
+
+        return (
+            cls._landmark(pose, cls.LEFT_WRIST),
+            cls._landmark(pose, cls.RIGHT_WRIST)
+        )

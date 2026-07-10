@@ -9,6 +9,8 @@ import math
 from analysis.pose_analyzer import PoseAnalyzer
 from models.tracked_person import TrackedPerson
 from models.risk_breakdown import RiskBreakdown
+from models.pose_result import PoseResult
+from models.pose_landmark import PoseLandmark
 from config.settings import (
     PROXIMITY_START_DISTANCE,
     PROXIMITY_FULL_RISK_DISTANCE,
@@ -34,9 +36,13 @@ class RiskEngine:
         Initialize the risk engine.
         """
 
-        self._previous_body_centers: dict[int, tuple[int, int]] = {}
+        self._previous_body_centers: dict[int, PoseLandmark] = {}
+
+        self.previous_pose: dict[int, PoseResult] = {}
 
         self._previous_risk_scores: dict[int, float] = {}
+
+        self.debug_scores: dict[int, RiskBreakdown] = {}
 
 
     @staticmethod
@@ -55,9 +61,6 @@ class RiskEngine:
         first_center = PoseAnalyzer.body_center(first.pose)
         second_center = PoseAnalyzer.body_center(second.pose)
 
-        print(f"Center 1: ({first_center.x}, {first_center.y})")
-        print(f"Center 2: ({second_center.x}, {second_center.y})")
-
         if first_center is None or second_center is None:
             return float("inf")
 
@@ -74,7 +77,6 @@ class RiskEngine:
         """
         Update risk scores based on the proximity of tracked people.
         """
-        print(f"People detected: {len(people)}")
 
         proximity_scores = {
             person.track_id: 0.0
@@ -90,13 +92,8 @@ class RiskEngine:
                     second
                 )
 
-                print(f"Distance: {distance:.1f}")
-
                 if distance >= PROXIMITY_START_DISTANCE:
-                    print("Rejected")
                     continue
-
-                print("Accepted")
 
                 normalized = (PROXIMITY_START_DISTANCE - distance) / (PROXIMITY_START_DISTANCE - PROXIMITY_FULL_RISK_DISTANCE)
 
@@ -224,7 +221,8 @@ class RiskEngine:
         self,
         people: list[TrackedPerson],
         proximity_scores: dict[int, float],
-        movement_scores: dict[int, float]
+        movement_scores: dict[int, float],
+        hand_speed_scores: dict[int, float]
     ) -> tuple[
         dict[int, float],
         dict[int, RiskBreakdown]
@@ -244,13 +242,16 @@ class RiskEngine:
 
             movement = movement_scores.get(person.track_id, 0.0)
 
-            total = proximity + movement
+            hand_speed = hand_speed_scores.get(person.track_id, 0.0)
+
+            total = proximity + movement+ hand_speed
 
             risk_scores[person.track_id] = total
 
             debug_scores[person.track_id] = RiskBreakdown(
                 proximity=proximity,
                 movement=movement,
+                hand_speed=hand_speed,
                 raw_total=total
             )
 
@@ -278,11 +279,14 @@ class RiskEngine:
 
         movement_scores = self._compute_body_movement_risk(people)
 
+        hand_speed_scores = self._compute_hand_speed_risk(people)
+
         risk_scores, debug_scores = (
             self._combine_risk_scores(
                 people,
                 proximity_scores,
-                movement_scores
+                movement_scores,
+                hand_speed_scores
             )
         )
 
@@ -293,3 +297,37 @@ class RiskEngine:
             debug_scores[person.track_id].smoothed_total = risk_scores[person.track_id]
 
         return (risk_scores, debug_scores)
+    
+
+    def _compute_hand_speed_risk(self, people: list[TrackedPerson]) -> dict[int, float]:
+        """
+        Compute risk based on wrist movement speed.
+        """
+
+        hand_speed_scores = {
+            person.track_id: 0.0
+            for person in people
+        }
+
+        for person in people:
+
+            if person.pose is None:
+                continue
+
+            current_left, current_right = PoseAnalyzer.wrists(person.pose)
+
+            if (
+                current_left is None
+                or current_right is None
+            ):
+                continue
+
+            previous_pose = self.previous_pose.get(person.track_id)
+
+            if previous_pose is None:
+
+                self.previous_pose[person.track_id] = person.pose
+
+                continue
+
+        return hand_speed_scores
