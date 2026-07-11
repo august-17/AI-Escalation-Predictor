@@ -226,7 +226,8 @@ class RiskEngine:
         people: list[TrackedPerson],
         proximity_scores: dict[int, float],
         movement_scores: dict[int, float],
-        hand_speed_scores: dict[int, float]
+        hand_speed_scores: dict[int, float],
+        arm_extension_scores: dict[int, float]
     ) -> tuple[
         dict[int, float],
         dict[int, RiskBreakdown]
@@ -248,7 +249,9 @@ class RiskEngine:
 
             hand_speed = hand_speed_scores.get(person.track_id, 0.0)
 
-            total = proximity + movement+ hand_speed
+            arm_extension = arm_extension_scores.get(person.track_id, 0.0)
+
+            total = proximity + movement+ hand_speed + arm_extension
 
             risk_scores[person.track_id] = total
 
@@ -256,6 +259,7 @@ class RiskEngine:
                 proximity=proximity,
                 movement=movement,
                 hand_speed=hand_speed,
+                arm_extension=arm_extension,
                 raw_total=total
             )
 
@@ -376,3 +380,16 @@ class RiskEngine:
             self.previous_pose[person.track_id] = person.pose
 
         return hand_speed_scores
+    
+
+    def _compute_arm_extension_risk(self, people: list[TrackedPerson]) -> dict[int, float]:
+        """
+        Compute risk based on arm extension.
+        """
+
+        arm_extension_scores = {
+            person.track_id: 0.0
+            for person in people
+        }
+
+        return arm_extension_scores
