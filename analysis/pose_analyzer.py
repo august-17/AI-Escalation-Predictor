@@ -163,3 +163,33 @@ class PoseAnalyzer:
             cls._landmark(pose, cls.LEFT_WRIST),
             cls._landmark(pose, cls.RIGHT_WRIST)
         )
+
+
+    @classmethod
+    def arm_landmarks(
+        cls,
+        pose: PoseResult,
+        left: bool
+    ) -> tuple[
+        PoseLandmark | None,
+        PoseLandmark | None,
+        PoseLandmark | None,
+    ]:
+        """
+        Return shoulder, elbow and wrist landmarks
+        for one arm.
+        """
+
+        if left:
+
+            return (
+                cls._landmark(pose, cls.LEFT_SHOULDER),
+                cls._landmark(pose, cls.LEFT_ELBOW),
+                cls._landmark(pose, cls.LEFT_WRIST)
+            )
+
+        return (
+            cls._landmark(pose, cls.RIGHT_SHOULDER),
+            cls._landmark(pose, cls.RIGHT_ELBOW),
+            cls._landmark(pose, cls.RIGHT_WRIST)
+        )

@@ -23,7 +23,11 @@ from config.settings import (
     HAND_SPEED_MAX_PIXELS,
     HAND_SPEED_FULL_RISK,
     HAND_SPEED_MIN_SPEED,
-    HAND_SPEED_MAX_SCORE
+    HAND_SPEED_MAX_SCORE,
+    ARM_EXTENSION_START_RATIO,
+    ARM_EXTENSION_FULL_RATIO,
+    ARM_EXTENSION_MAX_SCORE,
+    ARM_EXTENSION_HAND_SPEED_GATE
 )
 
 
@@ -251,7 +255,10 @@ class RiskEngine:
 
             arm_extension = arm_extension_scores.get(person.track_id, 0.0)
 
-            total = proximity + movement+ hand_speed + arm_extension
+            if hand_speed < ARM_EXTENSION_HAND_SPEED_GATE:
+                arm_extension = 0.0
+
+            total = proximity + movement + hand_speed + arm_extension
 
             risk_scores[person.track_id] = total
 
@@ -289,12 +296,15 @@ class RiskEngine:
 
         hand_speed_scores = self._compute_hand_speed_risk(people)
 
+        arm_extension_scores = self._compute_arm_extension_risk(people)
+
         risk_scores, debug_scores = (
             self._combine_risk_scores(
                 people,
                 proximity_scores,
                 movement_scores,
-                hand_speed_scores
+                hand_speed_scores,
+                arm_extension_scores
             )
         )
 
@@ -391,5 +401,51 @@ class RiskEngine:
             person.track_id: 0.0
             for person in people
         }
+
+        for person in people:
+
+            if person.pose is None:
+                continue
+
+            highest_ratio = 0.0
+
+            for left in (True, False):
+
+                shoulder, elbow, wrist = PoseAnalyzer.arm_landmarks(person.pose, left)
+
+                if (shoulder is None or elbow is None or wrist is None):
+                    continue
+
+                shoulder_to_elbow = math.hypot(
+                    elbow.x - shoulder.x,
+                    elbow.y - shoulder.y
+                )
+
+                elbow_to_wrist = math.hypot(
+                    wrist.x - elbow.x,
+                    wrist.y - elbow.y
+                )
+
+                shoulder_to_wrist = math.hypot(
+                    wrist.x - shoulder.x,
+                    wrist.y - shoulder.y
+                )
+
+                arm_length = shoulder_to_elbow + elbow_to_wrist
+
+                if arm_length <= 0:
+                    continue
+
+                extension_ratio = shoulder_to_wrist / arm_length
+
+                highest_ratio = max(highest_ratio, extension_ratio)
+
+            if highest_ratio > ARM_EXTENSION_START_RATIO:
+
+                risk = (highest_ratio - ARM_EXTENSION_START_RATIO) / (ARM_EXTENSION_FULL_RATIO - ARM_EXTENSION_START_RATIO)
+
+                risk = max(0.0, min(risk, 1.0))
+
+                arm_extension_scores[person.track_id] = risk * ARM_EXTENSION_MAX_SCORE
 
         return arm_extension_scores
