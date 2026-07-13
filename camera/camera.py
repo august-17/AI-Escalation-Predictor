@@ -11,6 +11,7 @@ from typing import Optional
 
 import cv2
 
+from models.types import TrackPair
 from config.settings import (
     CAMERA_INDEX,
     CAMERA_WIDTH,
@@ -90,7 +91,7 @@ class Camera:
             logger.info("Camera released.")
 
 
-    def get_resolution(self) -> tuple[int, int]:
+    def get_resolution(self) -> TrackPair:
         """
         Return the current camera resolution.
 

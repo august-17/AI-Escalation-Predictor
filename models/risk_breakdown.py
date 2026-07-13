@@ -20,3 +20,4 @@ class RiskBreakdown:
     raw_total: float = 0.0
     smoothed_total: float = 0.0
     arm_extension: float = 0.0
+    approach_speed: float = 0.0

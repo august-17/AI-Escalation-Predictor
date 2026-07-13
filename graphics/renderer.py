@@ -11,6 +11,7 @@ import cv2
 from models.tracked_person import TrackedPerson
 from models.person_detection import PersonDetection
 from models.pose_result import PoseResult
+from models.types import RiskScores
 from pose.pose_connections import POSE_CONNECTIONS
 from config.settings import POSE_MIN_VISIBILITY
 
@@ -82,7 +83,7 @@ class Renderer:
     def draw_tracked_people(
         frame: cv2.typing.MatLike, 
         tracked_people: list[TrackedPerson],
-        risk_scores: dict[int, float]
+        risk_scores: RiskScores
     ) -> None:
         """
         Draw tracked people with their tracking IDs.
