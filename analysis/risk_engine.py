@@ -32,7 +32,10 @@ from config.settings import (
     ARM_EXTENSION_START_RATIO,
     ARM_EXTENSION_FULL_RATIO,
     ARM_EXTENSION_MAX_SCORE,
-    ARM_EXTENSION_HAND_SPEED_GATE
+    ARM_EXTENSION_HAND_SPEED_GATE,
+    APPROACH_SPEED_START,
+    APPROACH_SPEED_FULL,
+    APPROACH_SPEED_MAX_SCORE
 )
 
 
@@ -61,6 +64,17 @@ class RiskEngine:
 
 
     @staticmethod
+    def _pair_key(
+        first_id: int,
+        second_id: int
+    ) -> TrackPair:
+        return (
+            min(first_id, second_id),
+            max(first_id, second_id)
+        )
+
+
+    @staticmethod
     def _distance_between_people(
         first: TrackedPerson,
         second: TrackedPerson
@@ -83,6 +97,53 @@ class RiskEngine:
             first_center.x - second_center.x,
             first_center.y - second_center.y
         )
+    
+
+    def _apply_risk_memory(
+        self,
+        people: list[TrackedPerson],
+        risk_scores: RiskScores
+    ) -> None:
+        """
+        Smooth risk scores over time.
+        """
+
+        active_ids: set[int] = set()
+
+        for person in people:
+
+            active_ids.add(person.track_id)
+
+            previous = self._previous_risk_scores.get(person.track_id, 0.0)
+
+            current = risk_scores[person.track_id]
+
+            if current > previous:
+
+                smoothed = (
+                    previous * RISK_INCREASE_MEMORY
+                    + current * (1.0 - RISK_INCREASE_MEMORY)
+                )
+
+            else:
+
+                smoothed = (
+                    previous * RISK_DECREASE_MEMORY
+                    + current * (1.0 - RISK_DECREASE_MEMORY)
+                )
+
+            smoothed = max(0.0, min(smoothed, 1.0))
+
+            risk_scores[person.track_id] = smoothed
+
+            self._previous_risk_scores[person.track_id] = smoothed
+
+        self._previous_risk_scores = {
+            track_id: risk
+            for track_id, risk
+            in self._previous_risk_scores.items()
+            if track_id in active_ids
+        }
 
 
     def _compute_proximity_risk(
@@ -176,53 +237,6 @@ class RiskEngine:
         }
 
         return movement_scores
-
-
-    def _apply_risk_memory(
-        self,
-        people: list[TrackedPerson],
-        risk_scores: RiskScores
-    ) -> None:
-        """
-        Smooth risk scores over time.
-        """
-
-        active_ids: set[int] = set()
-
-        for person in people:
-
-            active_ids.add(person.track_id)
-
-            previous = self._previous_risk_scores.get(person.track_id, 0.0)
-
-            current = risk_scores[person.track_id]
-
-            if current > previous:
-
-                smoothed = (
-                    previous * RISK_INCREASE_MEMORY
-                    + current * (1.0 - RISK_INCREASE_MEMORY)
-                )
-
-            else:
-
-                smoothed = (
-                    previous * RISK_DECREASE_MEMORY
-                    + current * (1.0 - RISK_DECREASE_MEMORY)
-                )
-
-            smoothed = max(0.0, min(smoothed, 1.0))
-
-            risk_scores[person.track_id] = smoothed
-
-            self._previous_risk_scores[person.track_id] = smoothed
-
-        self._previous_risk_scores = {
-            track_id: risk
-            for track_id, risk
-            in self._previous_risk_scores.items()
-            if track_id in active_ids
-        }
     
 
     def _compute_hand_speed_risk(self, people: list[TrackedPerson]) -> RiskScores:
@@ -369,6 +383,65 @@ class RiskEngine:
             person.track_id: 0.0
             for person in people
         }
+
+        active_pairs: set[TrackPair] = set()
+
+        for i, first in enumerate(people):
+
+            for second in people[i + 1:]:
+
+                distance = self._distance_between_people(first, second)
+
+                if distance > PROXIMITY_START_DISTANCE:
+                    continue
+
+                pair = self._pair_key(
+                    first.track_id,
+                    second.track_id
+                )
+
+                active_pairs.add(pair)
+
+                previous_distance = self._previous_distances.get(pair)
+
+                if previous_distance is None:
+
+                    self._previous_distances[pair] = distance
+
+                    continue
+
+                closing_speed = previous_distance - distance
+
+                if closing_speed <= 0:
+
+                    self._previous_distances[pair] = distance
+
+                    continue
+
+                normalized = (closing_speed - APPROACH_SPEED_START) / (APPROACH_SPEED_FULL - APPROACH_SPEED_START)
+
+                normalized = max(0.0, min(normalized, 1.0))
+
+                approach_risk = normalized * APPROACH_SPEED_MAX_SCORE
+
+                approach_scores[first.track_id] += approach_risk
+
+                approach_scores[second.track_id] += approach_risk
+
+                print(
+                    f"Pair {pair} | "
+                    f"Closing Speed: {closing_speed:.1f} px | "
+                    f"Approach Risk: {approach_risk:.3f}"
+                )
+
+                self._previous_distances[pair] = distance
+
+        self._previous_distances = {
+                    pair: distance
+                    for pair, distance
+                    in self._previous_distances.items()
+                    if pair in active_pairs
+                }
 
         return approach_scores
     
