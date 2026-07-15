@@ -47,6 +47,7 @@ class Application:
 
         self.frame_count: int = 0
         self.pose_cache: dict[int, tuple[PoseResult, float]] = {}
+        self.last_performance_log = time.perf_counter()
 
         self.risk_engine = RiskEngine()
     
@@ -130,11 +131,23 @@ class Application:
 
                 yolo_start = time.perf_counter()
                 tracked_people = self.tracker.track(frame)
-                yolo_time = time.perf_counter() - yolo_start
+                yolo_time = (time.perf_counter() - yolo_start) * 1000
 
                 self.frame_count += 1
 
                 run_pose = self._should_run_pose(len(tracked_people))
+
+                if not tracked_people:
+
+                    pose_status = "Skipped"
+
+                elif run_pose:
+
+                    pose_status = "Estimated"
+
+                else:
+
+                    pose_status = "Cached"
 
                 pose_start = time.perf_counter()
 
@@ -196,7 +209,7 @@ class Application:
 
                     person.pose = pose_result
 
-                pose_time = time.perf_counter() - pose_start
+                pose_time = (time.perf_counter() - pose_start) * 1000
 
                 active_ids = {
                     person.track_id
@@ -213,25 +226,33 @@ class Application:
                 
                 risk_start = time.perf_counter()
                 risk_scores, _ = self.risk_engine.compute(tracked_people)
-                risk_time = time.perf_counter() - risk_start
+                risk_time = (time.perf_counter() - risk_start) * 1000
 
-                if self.frame_count % 60 == 0:
+                self.fps_counter.update()
+
+                fps = self.fps_counter.get_fps()
+
+                log_time = time.perf_counter()
+
+                if log_time - self.last_performance_log >= 5.0:
+
                     logger.info(
-                        "YOLO: %.3f ms | Pose: %.3f ms | Risk: %.3f ms",
-                        yolo_time * 1000,
-                        pose_time * 1000,
-                        risk_time * 1000,
+                        "FPS: %.1f | People: %d | Pose: %s (%.3f ms) | YOLO: %.3f ms | Risk: %.3f ms",
+                        fps,
+                        len(tracked_people),
+                        pose_status,
+                        pose_time,
+                        yolo_time,
+                        risk_time
                     )
+
+                    self.last_performance_log = log_time
 
                 Renderer.draw_tracked_people(frame, tracked_people, risk_scores)
 
                 for person in tracked_people:
 
                     Renderer.draw_pose(frame, person.pose)
-
-                self.fps_counter.update()
-
-                fps = self.fps_counter.get_fps()
                 
                 Renderer.draw_fps(frame, fps)
 

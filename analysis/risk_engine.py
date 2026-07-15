@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import math
 
+import logging
+
 from analysis.pose_analyzer import PoseAnalyzer
 from models.tracked_person import TrackedPerson
 from models.risk_breakdown import RiskBreakdown
@@ -35,8 +37,14 @@ from config.settings import (
     ARM_EXTENSION_HAND_SPEED_GATE,
     APPROACH_SPEED_START,
     APPROACH_SPEED_FULL,
-    APPROACH_SPEED_MAX_SCORE
+    APPROACH_SPEED_MAX_SCORE,
+    ESCALATION_BUILD_RATE,
+    ESCALATION_DECAY_RATE,
+    ESCALATION_DECAY_THRESHOLD,
+    ESCALATION_CONFIDENCE_WEIGHT
 )
+
+logger = logging.getLogger(__name__)
 
 
 class RiskEngine:
@@ -56,9 +64,11 @@ class RiskEngine:
 
         self._previous_pose: dict[int, PoseResult] = {}
 
+        self._previous_distances: dict[TrackPair, float] = {}
+
         self._previous_risk_scores: RiskScores = {}
 
-        self._previous_distances: dict[TrackPair, float] = {}
+        self._escalation_confidence: RiskScores = {}
 
         self.debug_scores: dict[int, RiskBreakdown] = {}
 
@@ -146,10 +156,51 @@ class RiskEngine:
         }
 
 
-    def _compute_proximity_risk(
+    def _apply_escalation_persistence(
         self,
-        people: list[TrackedPerson]
-    ) -> RiskScores:
+        people: list[TrackedPerson],
+        risk_scores: RiskScores
+    ) -> None:
+        """
+        Maintain long-term escalation confidence
+        for each tracked person.
+        """
+
+        active_ids: set[int] = set()
+
+        for person in people:
+
+            active_ids.add(person.track_id)
+
+            confidence = self._escalation_confidence.get(person.track_id, 0.0)
+
+            risk = risk_scores[person.track_id]
+
+            if risk < ESCALATION_DECAY_THRESHOLD:
+
+                confidence -= ESCALATION_DECAY_RATE
+
+            else:
+
+                confidence += risk * ESCALATION_BUILD_RATE
+
+            confidence = max(0.0, min(confidence, 1.0))
+
+            risk_scores[person.track_id] += confidence * ESCALATION_CONFIDENCE_WEIGHT
+
+            risk_scores[person.track_id] = max(0.0, min(risk_scores[person.track_id], 1.0))
+
+            self._escalation_confidence[person.track_id] = confidence
+
+        self._escalation_confidence = {
+            track_id: confidence
+            for track_id, confidence
+            in self._escalation_confidence.items()
+            if track_id in active_ids
+        }
+
+
+    def _compute_proximity_risk(self, people: list[TrackedPerson]) -> RiskScores:
         """
         Update risk scores based on the proximity of tracked people.
         """
@@ -183,10 +234,7 @@ class RiskEngine:
         return proximity_scores
 
 
-    def _compute_body_movement_risk(
-        self,
-        people: list[TrackedPerson]
-    ) -> RiskScores:
+    def _compute_body_movement_risk(self, people: list[TrackedPerson]) -> RiskScores:
         """
         Update risk scores based on body movement.
         """
@@ -303,10 +351,11 @@ class RiskEngine:
 
                 hand_speed_scores[person.track_id] = (risk * HAND_SPEED_MAX_SCORE)
 
-                print(
-                    f"ID {person.track_id} | "
-                    f"Hand Speed: {hand_speed:.1f} px | "
-                    f"Hand Risk: {hand_speed_scores[person.track_id]:.3f}"
+                logger.debug(
+                    "ID %d | Hand Speed: %.1f px | Hand Risk: %.3f",
+                    person.track_id,
+                    hand_speed,
+                    risk,
                 )
 
             self._previous_pose[person.track_id] = person.pose
@@ -428,10 +477,11 @@ class RiskEngine:
 
                 approach_scores[second.track_id] += approach_risk
 
-                print(
-                    f"Pair {pair} | "
-                    f"Closing Speed: {closing_speed:.1f} px | "
-                    f"Approach Risk: {approach_risk:.3f}"
+                logger.debug(
+                    "Pair %s | Closing Speed: %.1f px | Approach Risk: %.3f",
+                    pair,
+                    closing_speed,
+                    approach_risk,
                 )
 
                 self._previous_distances[pair] = distance
@@ -528,6 +578,8 @@ class RiskEngine:
         )
 
         self._apply_risk_memory(people, risk_scores)
+
+        self._apply_escalation_persistence(people, risk_scores)
 
         for person in people:
 
