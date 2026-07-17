@@ -1,9 +1,15 @@
 from alerts.alert_manager import AlertManager
 
-
 manager = AlertManager()
 
-print(manager.get_alert_level(0.10))
-print(manager.get_alert_level(0.35))
-print(manager.get_alert_level(0.60))
-print(manager.get_alert_level(0.90))
+risk_scores = {
+    1: 0.12,
+    2: 0.41,
+    3: 0.63,
+    4: 0.91,
+}
+
+levels = manager.update(risk_scores)
+
+for track_id, level in levels.items():
+    print(track_id, level)

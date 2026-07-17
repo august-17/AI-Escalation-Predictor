@@ -10,6 +10,7 @@ import cv2
 
 import time
 
+from alerts.alert_manager import AlertManager
 from camera.camera import Camera
 from camera.fps import FPSCounter
 from graphics.renderer import Renderer
@@ -50,6 +51,8 @@ class Application:
         self.last_performance_log = time.perf_counter()
 
         self.risk_engine = RiskEngine()
+
+        self.alert_manager = AlertManager()
     
 
     def _should_run_pose(self, people_count: int) -> bool:
@@ -227,6 +230,15 @@ class Application:
                 risk_start = time.perf_counter()
                 risk_scores, _ = self.risk_engine.compute(tracked_people)
                 risk_time = (time.perf_counter() - risk_start) * 1000
+
+                alert_states = self.alert_manager.update(risk_scores)
+
+                for state in alert_states.values():
+                    print(
+                        state.track_id,
+                        state.level,
+                        state.transition
+                    )
 
                 self.fps_counter.update()
 
