@@ -11,3 +11,4 @@ class AlertState:
     level: AlertLevel
     transition: AlertTransition = AlertTransition.NONE
     entered_at: float = field(default_factory=time.time)
+    confirmed: bool = False
