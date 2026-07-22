@@ -32,6 +32,8 @@ class AlertManager:
 
         self._events: list[AlertEvent] = []
 
+        self._pending_events: list[AlertEvent] = []
+
 
     def _compute_alert_level(self, risk: float) -> AlertLevel:
         """
@@ -64,32 +66,20 @@ class AlertManager:
 
             level = self._compute_alert_level(risk)
 
-            state = self._alert_states.get(track_id)
+            state = self._get_or_create_state(track_id, level)
 
-            if state is None:
-                state = AlertState(
-                    track_id=track_id,
-                    level=level
-                )
-                self._alert_states[track_id] = state
-            else:
-                previous_level = state.level
-                transition = self._get_transition(previous_level, level)
-                state.transition = transition
-
-                if previous_level != level:
-                    state.entered_at = time.time()
-
-                state.level = level
+            self._update_state(state, level)
 
             self._update_confirmation(state)
 
-        self._alert_states = {
-            track_id: state
-            for track_id, state
-            in self._alert_states.items()
-            if track_id in active_ids
-        }
+            if (
+                state.confirmed
+                and not state.event_created
+            ):
+                self._create_event(state)
+                state.event_created = True
+
+        self._remove_inactive_states(active_ids)
 
         return self._alert_states.copy()
     
@@ -176,4 +166,61 @@ class AlertManager:
         )
 
         self._events.append(event)
+
+        self._pending_events.append(event)
+
+
+    def get_new_events(self) -> list[AlertEvent]:
+        """
+        Return newly created alert events and clear the pending queue.
+        """
+
+        events = self._pending_events.copy()
+        self._pending_events.clear()
+
+        return events
+    
+
+    def _get_or_create_state(self, track_id: int, level: AlertLevel) -> AlertState:
+        """
+        Retrieve an existing alert state or create a new one.
+        """
+
+        state = self._alert_states.get(track_id)
+
+        if state is None:
+            state = AlertState(
+                track_id=track_id,
+                level=level
+            )
+            self._alert_states[track_id] = state
+
+        return state
+    
+
+    def _update_state(self, state: AlertState, level: AlertLevel) -> None:
+        """
+        Update the alert state for a person.
+        """
+        previous_level = state.level
+        transition = self._get_transition(previous_level, level)
+        state.transition = transition
+
+        if transition != AlertTransition.NONE:
+            state.entered_at = time.time()
+            state.event_created = False
+
+        state.level = level
+
+
+    def _remove_inactive_states(self, active_ids: set[int]) -> None:
+        """
+        Remove states for people that are no longer tracked.
+        """
+        self._alert_states = {
+            track_id: state
+            for track_id, state
+            in self._alert_states.items()
+            if track_id in active_ids
+        }
 

@@ -233,6 +233,15 @@ class Application:
 
                 alert_states = self.alert_manager.update(risk_scores)
 
+                new_events = self.alert_manager.get_new_events()
+
+                for event in new_events:
+                    print(
+                        f"[ALERT] "
+                        f"Person {event.track_id} "
+                        f"{event.level.value}"
+                    )
+
                 for state in alert_states.values():
                     print(
                         state.track_id,
