@@ -16,6 +16,7 @@ from camera.fps import FPSCounter
 from graphics.renderer import Renderer
 from tracking.person_tracker import PersonTracker
 from pose.landmark_converter import LandmarkConverter
+from alerts.alert_event import AlertEvent
 from models.pose_result import PoseResult
 from pose.pose_estimator import PoseEstimator
 from analysis.risk_engine import RiskEngine
@@ -105,6 +106,17 @@ class Application:
 
         return frame[y1:y2, x1:x2]
 
+
+    def _handle_alert_events(self, events: list[AlertEvent]) -> None:
+        """
+        Process newly generated alert events.
+        """
+        for event in events:
+            logger.info(
+                "[ALERT] Track %d %s",
+                event.track_id,
+                event.level.name,
+            )
 
     def run(self) -> None:
         """
@@ -235,19 +247,7 @@ class Application:
 
                 new_events = self.alert_manager.get_new_events()
 
-                for event in new_events:
-                    print(
-                        f"[ALERT] "
-                        f"Person {event.track_id} "
-                        f"{event.level.value}"
-                    )
-
-                for state in alert_states.values():
-                    print(
-                        state.track_id,
-                        state.level,
-                        state.transition
-                    )
+                self._handle_alert_events(new_events)
 
                 self.fps_counter.update()
 
@@ -269,11 +269,12 @@ class Application:
 
                     self.last_performance_log = log_time
 
-                Renderer.draw_tracked_people(frame, tracked_people, risk_scores)
-
-                for person in tracked_people:
-
-                    Renderer.draw_pose(frame, person.pose)
+                Renderer.draw_tracked_people(
+                    frame, 
+                    tracked_people, 
+                    risk_scores,
+                    alert_states
+                )
                 
                 Renderer.draw_fps(frame, fps)
 

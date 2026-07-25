@@ -14,6 +14,8 @@ from models.pose_result import PoseResult
 from models.types import RiskScores
 from pose.pose_connections import POSE_CONNECTIONS
 from config.settings import POSE_MIN_VISIBILITY
+from alerts.alert_level import AlertLevel
+from alerts.alert_state import AlertState
 
 class Renderer:
     """
@@ -83,7 +85,8 @@ class Renderer:
     def draw_tracked_people(
         frame: cv2.typing.MatLike, 
         tracked_people: list[TrackedPerson],
-        risk_scores: RiskScores
+        risk_scores: RiskScores,
+        alert_states: dict[int, AlertState]
     ) -> None:
         """
         Draw tracked people with their tracking IDs.
@@ -99,21 +102,31 @@ class Renderer:
 
             x1, y1, x2, y2 = bbox
 
+            risk = risk_scores.get(person.track_id, 0.0)
+
+            state = alert_states.get(person.track_id)
+
+            if state is not None:
+                level = state.level
+            else:
+                level = AlertLevel.NORMAL
+
+            colour = Renderer._alert_colour(level)
+
             cv2.rectangle(
                 frame,
                 (x1, y1),
                 (x2, y2),
-                (0, 255, 0),
+                colour,
                 2
             )
 
             Renderer.draw_pose(frame, person.pose)
 
-            risk = risk_scores.get(person.track_id, 0.0)
-
             label = (
                 f"ID: {person.track_id} | "
-                f"Risk: {risk:.2f}"
+                f"Risk: {risk:.2f} | "
+                f"{level.name}"
             )
 
             cv2.putText(
@@ -122,7 +135,7 @@ class Renderer:
                 (x1, max(y1 - 10, 20)),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.6,
-                (0, 255, 0),
+                colour,
                 2
             )
 
@@ -172,3 +185,19 @@ class Renderer:
                 (0, 255, 255),
                 -1
             )
+
+
+    @staticmethod
+    def _alert_colour(level: AlertLevel) -> tuple[int, int, int]:
+        """
+        Return the display colour for an alert level.
+        """
+
+        colours = {
+            AlertLevel.NORMAL: (0, 255, 0),
+            AlertLevel.WATCH: (0, 255, 255),
+            AlertLevel.WARNING: (0, 165, 255),
+            AlertLevel.CRITICAL: (0, 0, 255)
+        }
+
+        return colours[level]
