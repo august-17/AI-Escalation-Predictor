@@ -31,6 +31,8 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
+MediaPipe is pinned to **0.10.21** because version 0.10.31 removed the legacy `mp.solutions` API used by the pose adapter. Do not upgrade MediaPipe without migrating the adapter to MediaPipe Tasks.
+
 The default YOLO model weights (`yolov8n.pt`) are downloaded by Ultralytics on first use. To avoid a network download, pass a local model path with `--model`.
 
 ### Webcam

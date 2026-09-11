@@ -19,7 +19,18 @@ class PoseEstimator:
             raise RuntimeError(
                 "MediaPipe is not installed. Run: pip install -r requirements.txt"
             ) from error
-        self._pose_api = mp.solutions.pose
+
+        solutions = getattr(mp, "solutions", None)
+        pose_api = getattr(solutions, "pose", None)
+        if pose_api is None:
+            version = getattr(mp, "__version__", "unknown")
+            raise RuntimeError(
+                "This project uses the MediaPipe Legacy Pose API, but the installed "
+                f"MediaPipe {version} does not provide mp.solutions. Install the "
+                "supported release with: python -m pip install --force-reinstall "
+                "--no-cache-dir mediapipe==0.10.21"
+            )
+        self._pose_api = pose_api
         self._instances: dict[int, Any] = {}
         self._min_detection_confidence = min_detection_confidence
         self._min_tracking_confidence = min_tracking_confidence
