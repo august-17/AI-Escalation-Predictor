@@ -1,203 +1,100 @@
-"""
-renderer.py
-
-Provides drawing utilities for visualizing information on video frames.
-"""
+"""OpenCV overlays for tracks, poses, cue explanations and system status."""
 
 from __future__ import annotations
 
 import cv2
 
-from models.tracked_person import TrackedPerson
-from models.person_detection import PersonDetection
-from models.pose_result import PoseResult
-from models.types import RiskScores
-from pose.pose_connections import POSE_CONNECTIONS
-from config.settings import POSE_MIN_VISIBILITY
 from alerts.alert_level import AlertLevel
 from alerts.alert_state import AlertState
+from config.settings import POSE_MIN_VISIBILITY, WINDOW_NAME
+from models.pose_result import PoseResult
+from models.risk_breakdown import RiskBreakdown
+from models.tracked_person import TrackedPerson
+from models.types import RiskScores
+from pose.pose_connections import POSE_CONNECTIONS
+
+_COLORS = {
+    AlertLevel.NORMAL: (104, 211, 145),
+    AlertLevel.WATCH: (77, 210, 240),
+    AlertLevel.WARNING: (60, 153, 255),
+    AlertLevel.CRITICAL: (82, 82, 245),
+}
+
 
 class Renderer:
-    """
-    Responsible for drawing overlays on video frames.
-    """
-
-    @staticmethod
-    def draw_fps(frame: cv2.typing.MatLike, fps: float) -> None:
-        """
-        Draw the current FPS on the frame.
-
-        Args:
-            frame: Video frame.
-            fps: Current frames per second.
-        """
-
-        cv2.putText(
-            frame,
-            f"FPS: {fps:.1f}",
-            (10, 30),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (0, 255, 0),
-            2
-        )
-
-
-    @staticmethod
-    def draw_detections(frame: cv2.typing.MatLike, detections: list[PersonDetection]) -> None:
-        """
-        Draw person detections on the frame.
-
-        Args:
-            frame: Video frame.
-            detections: List of person detections.
-        """
-
-        for detection in detections:
-
-            bbox = detection.bbox
-            x1, y1, x2, y2 = bbox
-            
-            confidence = detection.confidence
-
-            cv2.rectangle(
-                frame,
-                (x1, y1),
-                (x2, y2),
-                (0, 255, 0),
-                2
-            )
-
-            label = f"Person {confidence:.2f}"
-
-            cv2.putText(
-                frame,
-                label,
-                (x1, max(y1 - 10, 20)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (0, 255, 0),
-                2
-            )
-
-
-    @staticmethod
-    def draw_tracked_people(
-        frame: cv2.typing.MatLike, 
-        tracked_people: list[TrackedPerson],
-        risk_scores: RiskScores,
-        alert_states: dict[int, AlertState]
-    ) -> None:
-        """
-        Draw tracked people with their tracking IDs.
-
-        Args:
-            frame: Video frame.
-            tracked_people: List of tracked people.
-        """
-
-        for person in tracked_people:
-
-            bbox = person.bbox
-
-            x1, y1, x2, y2 = bbox
-
-            risk = risk_scores.get(person.track_id, 0.0)
-
-            state = alert_states.get(person.track_id)
-
-            if state is not None:
-                level = state.level
-            else:
-                level = AlertLevel.NORMAL
-
-            colour = Renderer._alert_colour(level)
-
-            cv2.rectangle(
-                frame,
-                (x1, y1),
-                (x2, y2),
-                colour,
-                2
-            )
-
-            Renderer.draw_pose(frame, person.pose)
-
-            label = (
-                f"ID: {person.track_id} | "
-                f"Risk: {risk:.2f} | "
-                f"{level.name}"
-            )
-
-            cv2.putText(
-                frame,
-                label,
-                (x1, max(y1 - 10, 20)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                colour,
-                2
-            )
-
-
     @staticmethod
     def draw_pose(frame: cv2.typing.MatLike, pose: PoseResult | None) -> None:
-        """
-        Draw pose landmarks and skeleton.
-        """
-
-        if pose is None:
+        if pose is None or len(pose.landmarks) != 33:
             return
-        
-        if len(pose.landmarks) != 33:
-            return
-        
-        landmarks = pose.landmarks
-        
         for start_index, end_index in POSE_CONNECTIONS:
-
-            start = landmarks[start_index]
-            end = landmarks[end_index]
-
-            if (
-                start.visibility < POSE_MIN_VISIBILITY
-                or end.visibility < POSE_MIN_VISIBILITY
-            ):
+            start, end = pose.landmarks[start_index], pose.landmarks[end_index]
+            if min(start.visibility, end.visibility) < POSE_MIN_VISIBILITY:
                 continue
-
-            cv2.line(
-                frame,
-                (start.x, start.y),
-                (end.x, end.y),
-                (0, 255, 255),
-                2
-            )
-
-        for landmark in landmarks:
-
-            if landmark.visibility < POSE_MIN_VISIBILITY:
-                continue
-
-            cv2.circle(
-                frame,
-                (landmark.x, landmark.y),
-                4,
-                (0, 255, 255),
-                -1
-            )
-
+            cv2.line(frame, (start.x, start.y), (end.x, end.y), (230, 205, 95), 2)
+        for landmark in pose.landmarks:
+            if landmark.visibility >= POSE_MIN_VISIBILITY:
+                cv2.circle(frame, (landmark.x, landmark.y), 3, (240, 235, 165), -1)
 
     @staticmethod
-    def _alert_colour(level: AlertLevel) -> tuple[int, int, int]:
-        """
-        Return the display colour for an alert level.
-        """
+    def draw_tracks(
+        frame: cv2.typing.MatLike,
+        people: list[TrackedPerson],
+        scores: RiskScores,
+        states: dict[int, AlertState],
+        breakdowns: dict[int, RiskBreakdown],
+    ) -> None:
+        for person in people:
+            x1, y1, x2, y2 = person.bbox
+            state = states.get(person.track_id)
+            level = state.level if state else AlertLevel.NORMAL
+            color = _COLORS[level]
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            Renderer.draw_pose(frame, person.pose)
+            label = f"ID {person.track_id}  cue {scores.get(person.track_id, 0.0):.2f}  {level.name}"
+            label_y = max(24, y1 - 10)
+            (text_w, _), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.53, 1)
+            cv2.rectangle(frame, (x1, label_y - 20), (x1 + text_w + 10, label_y + 5), (13, 22, 34), -1)
+            cv2.putText(frame, label, (x1 + 5, label_y), cv2.FONT_HERSHEY_SIMPLEX, 0.53, color, 1, cv2.LINE_AA)
 
-        colours = {
-            AlertLevel.NORMAL: (0, 255, 0),
-            AlertLevel.WATCH: (0, 255, 255),
-            AlertLevel.WARNING: (0, 165, 255),
-            AlertLevel.CRITICAL: (0, 0, 255)
-        }
+    @staticmethod
+    def draw_header(frame: cv2.typing.MatLike, fps: float, people_count: int) -> None:
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (0, 0), (frame.shape[1], 48), (8, 16, 28), -1)
+        cv2.addWeighted(overlay, 0.86, frame, 0.14, 0, frame)
+        cv2.putText(frame, "AI ESCALATION PREDICTOR", (18, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.63, (225, 238, 250), 1, cv2.LINE_AA)
+        status = f"RESEARCH PROTOTYPE   FPS {fps:.1f}   TRACKS {people_count}"
+        (width, _), _ = cv2.getTextSize(status, cv2.FONT_HERSHEY_SIMPLEX, 0.48, 1)
+        cv2.putText(frame, status, (max(18, frame.shape[1] - width - 18), 29), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (157, 191, 219), 1, cv2.LINE_AA)
 
-        return colours[level]
+    @staticmethod
+    def draw_summary(
+        frame: cv2.typing.MatLike,
+        scores: RiskScores,
+        states: dict[int, AlertState],
+        breakdowns: dict[int, RiskBreakdown],
+    ) -> None:
+        if not scores:
+            return
+        track_id, risk = max(scores.items(), key=lambda item: item[1])
+        level = states.get(track_id, AlertState(track_id)).level
+        color = _COLORS[level]
+        factor = breakdowns.get(track_id, RiskBreakdown()).dominant_factor.replace("_", " ")
+        text = f"Highest cue: {risk:.2f}  |  Track {track_id}  |  {level.value}  |  Primary: {factor}"
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (0, frame.shape[0] - 46), (frame.shape[1], frame.shape[0]), (8, 16, 28), -1)
+        cv2.addWeighted(overlay, 0.84, frame, 0.16, 0, frame)
+        cv2.putText(frame, text, (18, frame.shape[0] - 16), cv2.FONT_HERSHEY_SIMPLEX, 0.54, color, 1, cv2.LINE_AA)
+
+    @staticmethod
+    def render(
+        frame: cv2.typing.MatLike,
+        people: list[TrackedPerson],
+        scores: RiskScores,
+        states: dict[int, AlertState],
+        breakdowns: dict[int, RiskBreakdown],
+        fps: float,
+    ) -> cv2.typing.MatLike:
+        Renderer.draw_tracks(frame, people, scores, states, breakdowns)
+        Renderer.draw_header(frame, fps, len(people))
+        Renderer.draw_summary(frame, scores, states, breakdowns)
+        return frame

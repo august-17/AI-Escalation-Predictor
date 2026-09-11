@@ -1,226 +1,143 @@
-"""
-Manage alert states based on risk scores.
-"""
-import time
+"""Stateful alert confirmation with hysteresis and testable timing."""
 
+from __future__ import annotations
+
+import time
+from typing import Callable
+
+from alerts.alert_event import AlertEvent
 from alerts.alert_level import AlertLevel
 from alerts.alert_state import AlertState
 from alerts.alert_transition import AlertTransition
-from alerts.alert_event import AlertEvent
-from models.types import RiskScores
-from config.settings import(
-    WATCH_THRESHOLD,
-    WARNING_THRESHOLD,
+from config.settings import (
+    ALERT_HYSTERESIS,
+    CRITICAL_CONFIRMATION_TIME,
     CRITICAL_THRESHOLD,
-    WATCH_CONFIRMATION_TIME,
     WARNING_CONFIRMATION_TIME,
-    CRITICAL_CONFIRMATION_TIME
+    WARNING_THRESHOLD,
+    WATCH_CONFIRMATION_TIME,
+    WATCH_THRESHOLD,
 )
+from models.risk_breakdown import RiskBreakdown
+from models.types import RiskScores
+
+_LEVEL_ORDER = {
+    AlertLevel.NORMAL: 0,
+    AlertLevel.WATCH: 1,
+    AlertLevel.WARNING: 2,
+    AlertLevel.CRITICAL: 3,
+}
 
 
 class AlertManager:
-    """
-    Manage alert levels for tracked people.
-    """
+    """Convert temporal cue scores into confirmed, non-flapping alert states."""
 
-    def __init__(self) -> None:
-        """
-        Initialize the alert manager.
-        """
-
-        self._alert_states: dict[int, AlertState] = {}
-
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self._clock = clock
+        self._states: dict[int, AlertState] = {}
         self._events: list[AlertEvent] = []
-
         self._pending_events: list[AlertEvent] = []
 
-
-    def _compute_alert_level(self, risk: float) -> AlertLevel:
-        """
-        Convert a risk score into
-        an alert level.
-        """
-
+    @staticmethod
+    def _base_level(risk: float) -> AlertLevel:
         if risk >= CRITICAL_THRESHOLD:
             return AlertLevel.CRITICAL
-
         if risk >= WARNING_THRESHOLD:
             return AlertLevel.WARNING
-
         if risk >= WATCH_THRESHOLD:
             return AlertLevel.WATCH
-
         return AlertLevel.NORMAL
-    
 
-    def update(self, risk_scores: RiskScores) -> dict[int, AlertState]:
-        """
-        Update alert levels for all tracked people.
-        """
+    def _level_with_hysteresis(self, risk: float, previous: AlertLevel) -> AlertLevel:
+        candidate = self._base_level(risk)
+        if _LEVEL_ORDER[candidate] >= _LEVEL_ORDER[previous]:
+            return candidate
+        if previous is AlertLevel.CRITICAL and risk >= CRITICAL_THRESHOLD - ALERT_HYSTERESIS:
+            return AlertLevel.CRITICAL
+        if previous is AlertLevel.WARNING and risk >= WARNING_THRESHOLD - ALERT_HYSTERESIS:
+            return AlertLevel.WARNING
+        if previous is AlertLevel.WATCH and risk >= WATCH_THRESHOLD - ALERT_HYSTERESIS:
+            return AlertLevel.WATCH
+        return candidate
 
-        active_ids: set[int] = set()
+    @staticmethod
+    def _transition(previous: AlertLevel, current: AlertLevel) -> AlertTransition:
+        if previous is current:
+            return AlertTransition.NONE
+        if _LEVEL_ORDER[current] > _LEVEL_ORDER[previous]:
+            return {
+                AlertLevel.WATCH: AlertTransition.ENTER_WATCH,
+                AlertLevel.WARNING: AlertTransition.ENTER_WARNING,
+                AlertLevel.CRITICAL: AlertTransition.ENTER_CRITICAL,
+            }[current]
+        return {
+            AlertLevel.WARNING: AlertTransition.DEESCALATE_TO_WARNING,
+            AlertLevel.WATCH: AlertTransition.DEESCALATE_TO_WATCH,
+            AlertLevel.NORMAL: AlertTransition.RETURN_TO_NORMAL,
+        }[current]
 
-        for track_id, risk in risk_scores.items():
+    @staticmethod
+    def _confirmation_time(level: AlertLevel) -> float:
+        return {
+            AlertLevel.NORMAL: 0.0,
+            AlertLevel.WATCH: WATCH_CONFIRMATION_TIME,
+            AlertLevel.WARNING: WARNING_CONFIRMATION_TIME,
+            AlertLevel.CRITICAL: CRITICAL_CONFIRMATION_TIME,
+        }[level]
 
-            active_ids.add(track_id)
+    def update(
+        self,
+        risk_scores: RiskScores,
+        breakdowns: dict[int, RiskBreakdown] | None = None,
+        timestamp: float | None = None,
+    ) -> dict[int, AlertState]:
+        now = self._clock() if timestamp is None else timestamp
+        active_ids = set(risk_scores)
+        for track_id, unclamped_risk in risk_scores.items():
+            risk = max(0.0, min(float(unclamped_risk), 1.0))
+            state = self._states.get(track_id)
+            if state is None:
+                state = AlertState(track_id=track_id, entered_at=now)
+                self._states[track_id] = state
+            level = self._level_with_hysteresis(risk, state.level)
+            transition = self._transition(state.level, level)
+            state.transition = transition
+            state.current_risk = risk
+            if level is not state.level:
+                state.level = level
+                state.entered_at = now
+                state.confirmed = level is AlertLevel.NORMAL
+                state.event_created = level is AlertLevel.NORMAL
+            elif level is AlertLevel.NORMAL:
+                state.confirmed = True
+                state.event_created = True
+            else:
+                state.confirmed = now - state.entered_at >= self._confirmation_time(level)
 
-            level = self._compute_alert_level(risk)
-
-            state = self._get_or_create_state(track_id, level)
-
-            self._update_state(state, level)
-
-            self._update_confirmation(state)
-
-            if (
-                state.confirmed
-                and not state.event_created
-            ):
-                self._create_event(state)
+            if state.confirmed and not state.event_created and level is not AlertLevel.NORMAL:
+                dominant = "unknown"
+                if breakdowns is not None and track_id in breakdowns:
+                    dominant = breakdowns[track_id].dominant_factor
+                event = AlertEvent(
+                    track_id=track_id,
+                    level=level,
+                    risk=risk,
+                    dominant_factor=dominant,
+                    timestamp=time.time(),
+                )
+                self._events.append(event)
+                self._pending_events.append(event)
                 state.event_created = True
 
-        self._remove_inactive_states(active_ids)
-
-        return self._alert_states.copy()
-    
-    
-    def _get_transition(
-        self,
-        previous: AlertLevel,
-        current: AlertLevel
-    ) -> AlertTransition:
-        """
-        Determine the transition between two alert levels.
-        """
-
-        if previous == current:
-            return AlertTransition.NONE
-
-        transitions = {
-            (AlertLevel.NORMAL, AlertLevel.WATCH):
-                AlertTransition.ENTER_WATCH,
-
-            (AlertLevel.WATCH, AlertLevel.WARNING):
-                AlertTransition.ENTER_WARNING,
-
-            (AlertLevel.WARNING, AlertLevel.CRITICAL):
-                AlertTransition.ENTER_CRITICAL,
-
-            (AlertLevel.CRITICAL, AlertLevel.WARNING):
-                AlertTransition.DEESCALATE_TO_WARNING,
-
-            (AlertLevel.WARNING, AlertLevel.WATCH):
-                AlertTransition.DEESCALATE_TO_WATCH,
-
-            (AlertLevel.WATCH, AlertLevel.NORMAL):
-                AlertTransition.RETURN_TO_NORMAL
+        self._states = {
+            track_id: state for track_id, state in self._states.items() if track_id in active_ids
         }
-
-        return transitions.get(
-            (previous, current),
-            AlertTransition.NONE
-        )
-    
-
-    def _confirmation_time(self, level: AlertLevel) -> float:
-        """
-        Return the confirmation duration
-        for an alert level.
-        """
-
-        if level == AlertLevel.WATCH:
-            return WATCH_CONFIRMATION_TIME
-
-        if level == AlertLevel.WARNING:
-            return WARNING_CONFIRMATION_TIME
-
-        if level == AlertLevel.CRITICAL:
-            return CRITICAL_CONFIRMATION_TIME
-
-        return 0.0
-    
-
-    def _update_confirmation(self, state: AlertState) -> None:
-
-        """
-        Update the confirmation status of an alert state.
-        """
-
-        if state.level == AlertLevel.NORMAL:
-            state.confirmed = False
-            return
-
-        duration = time.time() - state.entered_at
-
-        state.confirmed = duration >= self._confirmation_time(state.level)
-
-
-    def _create_event(self, state: AlertState) -> None:
-        """
-        Create and store a new alert event.
-        """
-
-        event = AlertEvent(
-            track_id=state.track_id,
-            level=state.level,
-        )
-
-        self._events.append(event)
-
-        self._pending_events.append(event)
-
+        return self._states.copy()
 
     def get_new_events(self) -> list[AlertEvent]:
-        """
-        Return newly created alert events and clear the pending queue.
-        """
-
-        events = self._pending_events.copy()
-        self._pending_events.clear()
-
+        events, self._pending_events = self._pending_events, []
         return events
-    
 
-    def _get_or_create_state(self, track_id: int, level: AlertLevel) -> AlertState:
-        """
-        Retrieve an existing alert state or create a new one.
-        """
-
-        state = self._alert_states.get(track_id)
-
-        if state is None:
-            state = AlertState(
-                track_id=track_id,
-                level=level
-            )
-            self._alert_states[track_id] = state
-
-        return state
-    
-
-    def _update_state(self, state: AlertState, level: AlertLevel) -> None:
-        """
-        Update the alert state for a person.
-        """
-        previous_level = state.level
-        transition = self._get_transition(previous_level, level)
-        state.transition = transition
-
-        if transition != AlertTransition.NONE:
-            state.entered_at = time.time()
-            state.event_created = False
-
-        state.level = level
-
-
-    def _remove_inactive_states(self, active_ids: set[int]) -> None:
-        """
-        Remove states for people that are no longer tracked.
-        """
-        self._alert_states = {
-            track_id: state
-            for track_id, state
-            in self._alert_states.items()
-            if track_id in active_ids
-        }
-
+    @property
+    def events(self) -> tuple[AlertEvent, ...]:
+        return tuple(self._events)
