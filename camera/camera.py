@@ -1,107 +1,86 @@
-"""
-camera.py
-
-Provides a reusable Camera class for accessing webcam or video sources.
-"""
+"""OpenCV capture abstraction supporting webcams and video files."""
 
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from pathlib import Path
+from typing import TypeAlias
 
 import cv2
 
-from models.types import TrackPair
-from config.settings import (
-    CAMERA_INDEX,
-    CAMERA_WIDTH,
-    CAMERA_HEIGHT
-)
+from config.settings import CAMERA_HEIGHT, CAMERA_INDEX, CAMERA_WIDTH
 
 logger = logging.getLogger(__name__)
+CaptureSource: TypeAlias = int | str
+
+
+def parse_source(value: str | int | None) -> CaptureSource:
+    """Convert a CLI source into a webcam index or a video path."""
+    if value is None:
+        return CAMERA_INDEX
+    if isinstance(value, int):
+        return value
+    stripped = value.strip()
+    if stripped.lstrip("-").isdigit():
+        return int(stripped)
+    return stripped
 
 
 class Camera:
-    """
-    Manages camera operations.
+    """Manage a webcam or video-file capture without doing inference."""
 
-    Responsibilities:
-        - Open camera
-        - Read frames
-        - Release camera
+    def __init__(
+        self,
+        source: CaptureSource = CAMERA_INDEX,
+        width: int = CAMERA_WIDTH,
+        height: int = CAMERA_HEIGHT,
+    ) -> None:
+        self.source = source
+        self.width = width
+        self.height = height
+        self.capture: cv2.VideoCapture | None = None
 
-    This class deliberately does NOT:
-        - Display frames
-        - Calculate FPS
-        - Perform AI inference
-    """
-
-    def __init__(self, camera_index: int = CAMERA_INDEX) -> None:
-        """
-        Initialize a Camera object.
-
-        Args:
-            camera_index: Index of the webcam.
-        """
-        self.camera_index = camera_index
-        self.capture: Optional[cv2.VideoCapture] = None
-
+    @property
+    def is_file(self) -> bool:
+        return isinstance(self.source, str)
 
     def open(self) -> bool:
-        """
-        Open the camera.
-
-        Returns:
-            True if successful, False otherwise.
-        """
-        self.capture = cv2.VideoCapture(self.camera_index)
-
-        self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
-        self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
-
-        if self.capture is None or not self.capture.isOpened():
-            logger.error("Unable to open camera %s.", self.camera_index)
+        if self.is_file and not Path(self.source).expanduser().is_file():
+            logger.error("Video source does not exist: %s", self.source)
             return False
-
-        logger.info("Camera %s opened successfully.", self.camera_index)
+        source = str(Path(self.source).expanduser()) if self.is_file else self.source
+        self.capture = cv2.VideoCapture(source)
+        if not self.is_file:
+            self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+            self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        if not self.capture.isOpened():
+            logger.error("Unable to open capture source %s.", self.source)
+            self.release()
+            return False
+        logger.info("Capture source %s opened successfully.", self.source)
         return True
 
-
     def read(self) -> tuple[bool, cv2.typing.MatLike | None]:
-        """
-        Read a frame from the camera.
-
-        Returns:
-            (success, frame)
-        """
         if self.capture is None:
-            logger.error("Camera has not been opened.")
+            logger.error("Capture source has not been opened.")
             return False, None
-
         return self.capture.read()
 
-
     def release(self) -> None:
-        """
-        Release the camera.
-        """
         if self.capture is not None:
             self.capture.release()
             self.capture = None
-            logger.info("Camera released.")
 
-
-    def get_resolution(self) -> TrackPair:
-        """
-        Return the current camera resolution.
-
-        Returns:
-            A tuple containing (width, height).
-        """
+    def get_resolution(self) -> tuple[int, int]:
         if self.capture is None:
             return 0, 0
+        return (
+            int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+        )
 
-        width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-        return width, height
+    def get_fps(self) -> float:
+        if self.capture is None:
+            return 0.0
+        value = float(self.capture.get(cv2.CAP_PROP_FPS))
+        return value if value > 0 else 0.0
