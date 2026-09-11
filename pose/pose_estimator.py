@@ -1,91 +1,50 @@
-"""
-pose_estimator.py
-
-Provides a MediaPipe-based human pose estimator.
-"""
+"""MediaPipe pose estimator with one temporal estimator per track."""
 
 from __future__ import annotations
 
-import logging
+from typing import Any
 
 import cv2
-import mediapipe as mp
-
-
-logger = logging.getLogger(__name__)
 
 
 class PoseEstimator:
-    """
-    Estimates human pose landmarks using MediaPipe.
-    """
-
     def __init__(
         self,
         min_detection_confidence: float = 0.5,
-        min_tracking_confidence: float = 0.5
+        min_tracking_confidence: float = 0.5,
     ) -> None:
-
-        self._mp_pose = mp.solutions.pose
-
-        self._pose_instances: dict[int, mp.solutions.pose.Pose] = {}
-
+        try:
+            import mediapipe as mp
+        except ImportError as error:
+            raise RuntimeError(
+                "MediaPipe is not installed. Run: pip install -r requirements.txt"
+            ) from error
+        self._pose_api = mp.solutions.pose
+        self._instances: dict[int, Any] = {}
         self._min_detection_confidence = min_detection_confidence
         self._min_tracking_confidence = min_tracking_confidence
 
-        logger.info("MediaPipe Pose initialized successfully.")
-
-
-    def _create_pose(self):
-        """
-        Create a new MediaPipe Pose instance.
-        """
-
-        return self._mp_pose.Pose(
+    def _create_pose(self) -> Any:
+        return self._pose_api.Pose(
             static_image_mode=False,
             model_complexity=1,
             smooth_landmarks=True,
             min_detection_confidence=self._min_detection_confidence,
-            min_tracking_confidence=self._min_tracking_confidence
+            min_tracking_confidence=self._min_tracking_confidence,
         )
 
-
-    def estimate(self, track_id: int, person_roi: cv2.typing.MatLike):
-        """
-        Estimate pose landmarks for a cropped person image.
-
-        Args:
-            person_roi: Cropped image containing a single person.
-
-        Returns:
-            MediaPipe pose estimation results,
-            or None if the ROI is empty.
-        """
-
+    def estimate(self, track_id: int, person_roi: cv2.typing.MatLike) -> Any:
         if person_roi.size == 0:
             return None
-
         rgb_roi = cv2.cvtColor(person_roi, cv2.COLOR_BGR2RGB)
-
-        if track_id not in self._pose_instances:
-
-            self._pose_instances[track_id] = self._create_pose()
-
-        pose = self._pose_instances[track_id]
-
+        pose = self._instances.setdefault(track_id, self._create_pose())
         return pose.process(rgb_roi)
-    
-
 
     def remove_inactive(self, active_ids: set[int]) -> None:
-        """
-        Remove pose trackers belonging to people
-        who are no longer being tracked.
-        """
+        for track_id in set(self._instances) - active_ids:
+            self._instances.pop(track_id).close()
 
-        self._pose_instances = {
-            track_id: pose
-            for track_id, pose
-            in self._pose_instances.items()
-            if track_id in active_ids
-        }
+    def close(self) -> None:
+        for pose in self._instances.values():
+            pose.close()
+        self._instances.clear()
