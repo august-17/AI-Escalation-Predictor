@@ -35,3 +35,14 @@ Thumbs.db
 
 # Testing
 testing.py
+# Environments and generated outputs
+.venv/
+outputs/
+*.mp4
+*.avi
+*.mkv
+
+# Tooling
+.ruff_cache/
+.coverage
+htmlcov/

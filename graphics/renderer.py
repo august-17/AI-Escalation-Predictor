@@ -50,15 +50,11 @@ class Renderer:
             color = _COLORS[level]
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             Renderer.draw_pose(frame, person.pose)
-            detail = breakdowns.get(person.track_id)
-            factor = detail.dominant_factor.replace("_", " ") if detail else "none"
             label = f"ID {person.track_id}  cue {scores.get(person.track_id, 0.0):.2f}  {level.name}"
             label_y = max(24, y1 - 10)
             (text_w, _), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.53, 1)
             cv2.rectangle(frame, (x1, label_y - 20), (x1 + text_w + 10, label_y + 5), (13, 22, 34), -1)
             cv2.putText(frame, label, (x1 + 5, label_y), cv2.FONT_HERSHEY_SIMPLEX, 0.53, color, 1, cv2.LINE_AA)
-            if factor != "none":
-                cv2.putText(frame, f"primary cue: {factor}", (x1 + 4, min(frame.shape[0] - 8, y2 + 19)), cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1, cv2.LINE_AA)
 
     @staticmethod
     def draw_header(frame: cv2.typing.MatLike, fps: float, people_count: int) -> None:
@@ -75,16 +71,19 @@ class Renderer:
         frame: cv2.typing.MatLike,
         scores: RiskScores,
         states: dict[int, AlertState],
+        breakdowns: dict[int, RiskBreakdown],
     ) -> None:
         if not scores:
             return
         track_id, risk = max(scores.items(), key=lambda item: item[1])
         level = states.get(track_id, AlertState(track_id)).level
         color = _COLORS[level]
-        text = f"Highest cue score: {risk:.2f}  |  Track {track_id}  |  {level.value}"
-        y = frame.shape[0] - 18
-        cv2.putText(frame, text, (18, y), cv2.FONT_HERSHEY_SIMPLEX, 0.56, (12, 18, 27), 3, cv2.LINE_AA)
-        cv2.putText(frame, text, (18, y), cv2.FONT_HERSHEY_SIMPLEX, 0.56, color, 1, cv2.LINE_AA)
+        factor = breakdowns.get(track_id, RiskBreakdown()).dominant_factor.replace("_", " ")
+        text = f"Highest cue: {risk:.2f}  |  Track {track_id}  |  {level.value}  |  Primary: {factor}"
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (0, frame.shape[0] - 46), (frame.shape[1], frame.shape[0]), (8, 16, 28), -1)
+        cv2.addWeighted(overlay, 0.84, frame, 0.16, 0, frame)
+        cv2.putText(frame, text, (18, frame.shape[0] - 16), cv2.FONT_HERSHEY_SIMPLEX, 0.54, color, 1, cv2.LINE_AA)
 
     @staticmethod
     def render(
@@ -97,5 +96,5 @@ class Renderer:
     ) -> cv2.typing.MatLike:
         Renderer.draw_tracks(frame, people, scores, states, breakdowns)
         Renderer.draw_header(frame, fps, len(people))
-        Renderer.draw_summary(frame, scores, states)
+        Renderer.draw_summary(frame, scores, states, breakdowns)
         return frame
