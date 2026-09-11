@@ -10,8 +10,9 @@ readme = "README.md"
 requires-python = ">=3.10,<3.13"
 authors = [{name = "August Kumar Sasmal"}]
 dependencies = [
-  "numpy>=1.26,<3",
-  "opencv-python>=4.9,<5",
+  "numpy==1.26.4",
+  "opencv-python==4.11.0.86",
+  "opencv-contrib-python==4.11.0.86",
   "ultralytics>=8.3,<9",
   "mediapipe==0.10.21",
 ]
